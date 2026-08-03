@@ -2,9 +2,5 @@ name = "disty-sales-dashboard"
 compatibility_date = "2026-08-03"
 pages_build_output_dir = "dist"
 
-[vars]
-REDASH_BASE_URL = "https://bi.disty.app"
-REDASH_QUERY_ID = "219"
-
-# Set DASHBOARD_ORIGIN in Cloudflare Pages after the first deployment.
-# Store REDASH_QUERY_API_KEY as an encrypted secret in the dashboard.
+# Add runtime values in Cloudflare Pages → Settings → Variables and Secrets.
+# Keep all Redash query URLs, keys and DASHBOARD_PASSWORD as encrypted secrets.

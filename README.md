@@ -1,94 +1,75 @@
 # Disty Sales Analytics
 
-Deployment-ready React dashboard for Cloudflare Pages. The browser calls only the same-origin `/api/orders` route. The Pages Function calls Redash server-to-server and never returns credentials or authentication headers.
+Deployment-ready React dashboard for Cloudflare Pages with four working views: Overview, Customers, Orders and Products. The frontend calls only same-origin Pages Functions. Redash configuration and the shared dashboard password remain server-only.
 
-## Architecture
+## Included architecture
 
-- **Frontend:** React + Vite, built to `dist/` and hosted on Cloudflare Pages.
-- **Server:** Cloudflare Pages Function at `functions/api/orders.js`.
-- **Data source:** latest cached result for Redash query `219` at `https://bi.disty.app`.
-- **Secret:** `REDASH_QUERY_API_KEY`, stored as an encrypted Cloudflare secret.
-- **Caching:** successful normalized responses are cached at the edge for five minutes.
-- **Manual refresh:** the frontend sends a same-origin `POST /api/orders` request with `X-Manual-Refresh: 1`. Refreshes have a short server-side cooldown to avoid repeated Redash calls.
-- **CORS:** same-origin requests are accepted. Cross-origin requests are accepted only when their origin matches `DASHBOARD_ORIGIN`.
+- React + Vite frontend built to `dist/`
+- Cloudflare Pages Functions at `/api/orders`, `/api/products` and `/api/customers`
+- Login, logout and session endpoints under `/api/auth/`
+- Root Pages middleware that protects all non-authentication API routes
+- Signed 12-hour `HttpOnly; Secure; SameSite=Strict` session cookie
+- Best-effort edge rate limiting: five failed login attempts trigger a 15-minute cooldown
+- Five-minute edge caching for successful normalized Redash responses
+- Controlled manual refresh with a 20-second cooldown
+- Loading, partial-error, retry and empty-data states
+- Search, sorting, pagination and CSV exports
 
 ## Local setup
 
-Requirements: Node.js 20 or newer.
+Requires Node.js 20 or newer.
 
-1. Install dependencies with `npm install`.
+1. Run `npm install`.
 2. Copy `.dev.vars.example` to `.dev.vars`.
-3. Put the real Query API Key only in `.dev.vars`. This file is ignored by Git.
-4. Run `npm run pages:dev` to build and run the frontend together with the Pages Function.
+3. Replace the placeholders in `.dev.vars` with local development values. Never commit this file.
+4. Run `npm run pages:dev`.
 
-Do not use a `VITE_` prefix for the Redash key. Vite-prefixed variables are included in browser code.
+The three Redash query variables can contain complete protected cached-result URLs. If they are the Redash `/queries/{id}/source` URLs, the server converts them to `/api/queries/{id}/results`; in that configuration, also set the optional `REDASH_QUERY_API_KEY` secret so the server can authenticate with an authorization header.
 
 ## Cloudflare Pages deployment
 
-### Option A: connect a Git repository
+1. Create a Cloudflare Pages project and connect the repository containing this folder.
+2. Choose the Vite framework preset.
+3. Set the build command to `npm run build`.
+4. Set the build output directory to `dist`.
+5. Deploy the project manually when ready. This package does not deploy itself.
 
-1. Create a new Cloudflare Pages project and connect the repository containing this folder.
-2. Use **Framework preset: Vite**.
-3. Set **Build command** to `npm run build`.
-4. Set **Build output directory** to `dist`.
-5. Deploy once so Cloudflare assigns the final `*.pages.dev` URL or connect the custom domain first.
+After the Pages project exists, go to:
 
-### Option B: Wrangler
+**Cloudflare → Workers & Pages → your project → Settings → Variables and Secrets**
 
-After authenticating Wrangler, run:
+Add these as encrypted **Secrets** in Production (and Preview only if preview deployments should use live data):
+
+| Secret | Purpose |
+| --- | --- |
+| `REDASH_ORDERS_QUERY_URL` | Protected Redash source for query 263 |
+| `REDASH_PRODUCTS_QUERY_URL` | Protected Redash source for query 262 |
+| `REDASH_CUSTOMERS_QUERY_URL` | Protected Redash source for query 264 |
+| `DASHBOARD_PASSWORD` | Shared password used only by Pages Functions |
+
+If the three URLs do not already contain their server-side authentication, also add `REDASH_QUERY_API_KEY` as an encrypted secret. Never put any of these values in `wrangler.toml`, Git, frontend source, browser storage, a URL shared with users, or a variable whose name starts with `VITE_`.
+
+Add `DASHBOARD_ORIGIN` as a normal encrypted secret or server variable containing the exact deployed origin, with no trailing slash. Example format: `https://dashboard.example.com`.
+
+Changing `DASHBOARD_PASSWORD` immediately invalidates existing signed sessions. A successful login creates a new 12-hour cookie. The browser never stores or reads the password or session token.
+
+## Data rules
+
+- Orders are deduplicated by `order_id`; invalid IDs or dates are removed.
+- Products are deduplicated by `order_id + assr_sku_id`; quantity and product totals remain numeric.
+- Customers are deduplicated by `customer_id`; new-customer metrics use `registered_at`.
+- Cancelled, canceled, rejected, failed and deleted orders are excluded by default and can be included with the dashboard toggle.
+- `total` drives order sales and average order value.
+- `customer_id` drives distinct active-customer counts.
+- `verification_status` drives verified, pending and unverified customer metrics.
+
+## Verification
+
+Run:
 
 ```bash
-npm install
+npm test
 npm run build
-npx wrangler pages deploy dist --project-name disty-sales-dashboard
 ```
 
-The `functions/` directory is deployed with the Pages project when using the Pages workflow.
-
-## Environment variables and secrets
-
-In Cloudflare: **Workers & Pages → disty-sales-dashboard → Settings → Variables and Secrets**.
-
-Add these values to both **Production** and **Preview** if preview deployments should use live data:
-
-| Name | Type | Value |
-| --- | --- | --- |
-| `REDASH_BASE_URL` | Text | `https://bi.disty.app` |
-| `REDASH_QUERY_ID` | Text | `219` |
-| `REDASH_QUERY_API_KEY` | **Secret / encrypted** | Your Redash Query API Key |
-| `DASHBOARD_ORIGIN` | Text | Exact deployed origin, e.g. `https://dashboard.example.com` |
-
-Important:
-
-- Paste the Redash key only into Cloudflare’s encrypted secret field.
-- Do not put the key in `wrangler.toml`, GitHub variables visible to the build, frontend code, browser storage, URLs, or any variable starting with `VITE_`.
-- `DASHBOARD_ORIGIN` must contain only the origin: scheme + hostname + optional port, with no path and no trailing slash.
-- After changing variables or secrets, deploy again so the Pages Function receives them.
-
-## Redash behavior
-
-The server requests:
-
-```text
-https://bi.disty.app/api/queries/219/results
-```
-
-Authentication is sent in the server-only `Authorization: Key …` header. The function extracts Redash rows, removes invalid or duplicate `order_id` values, normalizes the dashboard fields, and returns only:
-
-`order_id`, `erp_id`, `customer_name`, `city`, `source`, `payment_method`, `payment_status`, `order_type`, `order_state`, `subtotal`, `total`, `discount`, `wallet_amount_used`, `created_at`, `year_month`, `time`, `month`, `week_number`, `day`, and `is_mada`.
-
-Rows with an invalid `created_at` are excluded because dashboard time grouping depends on a valid timestamp. `erp_id` remains text. Invalid numeric values become zero. `is_mada` becomes `true`, `false`, or `null`.
-
-## Verification checklist
-
-1. Run `npm test`.
-2. Run `npm run build`.
-3. Start `npm run pages:dev` with a valid local `.dev.vars` file.
-4. Open the dashboard and verify loading, empty, error/retry, and manual-refresh states.
-5. In browser DevTools → Network, confirm the browser calls only `/api/orders` and does not call `bi.disty.app`.
-6. Search the built files for the real API key. There should be no match.
-7. Confirm `/api/orders` responses contain normalized rows and timestamps only—never secrets, Redash headers, or internal configuration.
-
-## Security notes
-
-This project protects the Redash credential from browser exposure. For a private internal dashboard, also enable Cloudflare Access in front of the Pages project so only authorized Disty users can open the dashboard or call its same-origin API.
+Before production use, verify each endpoint with the real secrets, confirm the dashboard pages and filters, and inspect the browser Network and Storage panels. The browser should call only same-origin `/api/*` routes; Redash URLs, query keys, API keys and `DASHBOARD_PASSWORD` must not appear in frontend bundles, page source, browser storage, request URLs, logs or JSON responses.
