@@ -65,6 +65,10 @@ Changing `DASHBOARD_PASSWORD` immediately invalidates existing signed sessions. 
 - Entity types accept the updated `entity_type_name_en` Redash column and retain `entity_type` as a backwards-compatible alias.
 - Product names accept `item_name_en` from Query 262, preventing valid items from being grouped as “Unknown”.
 - The customer-verification filter applies to Overview, Customers, Orders and Products; order and product rows inherit customer verification by `customer_id` when needed.
+- Customer entity selection uses visible multi-select toggle buttons on every dashboard page.
+- Quick date buttons provide Current month, Last month, Last 3 months and All time ranges while preserving manual start/end dates.
+- Overview includes a monthly retention cohort heatmap based on each customer's first order month in the filtered result.
+- Products includes an Order State filter and inherits order state by matching `order_id`.
 
 ## Verification
 

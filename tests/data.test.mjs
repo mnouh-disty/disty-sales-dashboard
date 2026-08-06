@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { normalizeCustomers, normalizeOrders, normalizeProducts, serveDataset } from "../functions/_shared/redash.js";
 import { createSession, sessionCookie, verifySession } from "../functions/_shared/auth.js";
 import { onRequest as authenticationMiddleware } from "../functions/_middleware.js";
+import { buildMonthlyRetention } from "../src/retention.js";
 
 test("orders are normalized and deduplicated by order_id", () => {
   const rows = normalizeOrders([
@@ -96,4 +97,20 @@ test("authentication middleware blocks protected APIs without a valid cookie", a
   });
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), { error: "Authentication required." });
+});
+
+test("monthly retention groups customers by first order month", () => {
+  const result = buildMonthlyRetention([
+    { customer_id: "C-1", created_at: "2026-01-03" },
+    { customer_id: "C-1", created_at: "2026-02-03" },
+    { customer_id: "C-2", created_at: "2026-01-12" },
+    { customer_id: "C-2", created_at: "2026-03-12" },
+    { customer_id: "C-3", created_at: "2026-02-18" },
+  ]);
+  assert.equal(result.rows.length, 2);
+  assert.equal(result.rows[0].cohortMonth, "2026-01");
+  assert.equal(result.rows[0].size, 2);
+  assert.equal(result.rows[0].retention[0].percentage, 100);
+  assert.equal(result.rows[0].retention[1].percentage, 50);
+  assert.equal(result.rows[0].retention[2].percentage, 50);
 });
