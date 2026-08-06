@@ -24,7 +24,7 @@ Requires Node.js 20 or newer.
 3. Replace the placeholders in `.dev.vars` with local development values. Never commit this file.
 4. Run `npm run pages:dev`.
 
-The three Redash query variables can contain complete protected cached-result URLs. If they are the Redash `/queries/{id}/source` URLs, the server converts them to `/api/queries/{id}/results`; in that configuration, also set the optional `REDASH_QUERY_API_KEY` secret so the server can authenticate with an authorization header.
+The three Redash query variables must contain the complete working protected JSON URLs. The server fetches each stored value exactly as configured and does not rebuild, rewrite or append to it.
 
 ## Cloudflare Pages deployment
 
@@ -62,6 +62,9 @@ Changing `DASHBOARD_PASSWORD` immediately invalidates existing signed sessions. 
 - `total` drives order sales and average order value.
 - `customer_id` drives distinct active-customer counts.
 - `verification_status` drives verified, pending and unverified customer metrics.
+- Entity types accept the updated `entity_type_name_en` Redash column and retain `entity_type` as a backwards-compatible alias.
+- Product names accept `item_name_en` from Query 262, preventing valid items from being grouped as “Unknown”.
+- The customer-verification filter applies to Overview, Customers, Orders and Products; order and product rows inherit customer verification by `customer_id` when needed.
 
 ## Verification
 
