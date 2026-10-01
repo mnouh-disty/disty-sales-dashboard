@@ -257,7 +257,6 @@ function ProductAnalytics({ refreshKey, onUpdated }) {
   const [rows, setRows] = useState([]);
   const [state, setState] = useState("loading");
   const [error, setError] = useState("");
-  const [websiteOnly, setWebsiteOnly] = useState(false);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -265,7 +264,7 @@ function ProductAnalytics({ refreshKey, onUpdated }) {
     fetch("/api/analytics", { signal: controller.signal }).then(async response => {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not load product analytics.");
-      setRows(payload.analytics || []); setWebsiteOnly(payload.websiteOnlyVerified === true);
+      setRows(payload.analytics || []);
       onUpdated(payload.updatedAt); setState("ready");
     }).catch(failure => { if (!controller.signal.aborted) { setError(failure.message); setState("error"); } });
     return () => controller.abort();
@@ -274,14 +273,16 @@ function ProductAnalytics({ refreshKey, onUpdated }) {
   if (state === "error") return <div className="empty-page error-state"><X size={34}/><h2>Product analytics is unavailable</h2><p>{error}</p><button className="primary" onClick={() => setRetry(value => value + 1)}>Retry</button></div>;
   const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit" }).formatToParts(new Date());
   const current = `${currentMonth.find(part => part.type === "year").value}-${currentMonth.find(part => part.type === "month").value}`;
-  const monthColumn = { key: "month", label: "Month", render: row => `${new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${row.month}-01T00:00:00Z`))}${row.month === current ? " · Month to date" : ""}` };
-  return <>
-    {!websiteOnly && <div className="inline-error" role="status"><div><strong>Website-only traffic is unverified.</strong><span>These figures come from Monthly Overview and may include app traffic. Filter the source report to Web before treating them as website metrics.</span></div></div>}
-    <div className="two-col">
-      <DataTable title="Visits by month" subtitle="GA4 Sessions · Monthly Overview" rows={rows} columns={[monthColumn, { key: "visits", label: "Visits (Sessions)", render: row => integer.format(row.visits) }]} filename="disty-monthly-visits.csv" initialSort={{ key: "month", dir: "desc" }}/>
-      <DataTable title="Active users by month" subtitle="GA4 Active Users · Unique within each month" rows={rows} columns={[monthColumn, { key: "activeUsers", label: "Active users", render: row => integer.format(row.activeUsers) }]} filename="disty-monthly-active-users.csv" initialSort={{ key: "month", dir: "desc" }}/>
-    </div>
-  </>;
+  const monthLabel = month => new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
+  const sortedRows = [...rows].sort((a, b) => b.month.localeCompare(a.month));
+  return <div className="two-col monthly-analytics">
+    {[["visits", "Visits", "Sessions"], ["activeUsers", "Active users", "Unique users per month"]].map(([key, title, subtitle]) => <Card key={key} title={title} subtitle={subtitle} className="monthly-card">
+      <div className="table-wrap"><table aria-label={`${title} by month`}><thead><tr><th scope="col">Month</th><th scope="col">{title}</th></tr></thead><tbody>
+        {sortedRows.map(row => <tr key={row.month}><td>{monthLabel(row.month)} {row.month === current && <span className="month-to-date" title="Month to date">MTD</span>}</td><td>{integer.format(row[key])}</td></tr>)}
+        {!sortedRows.length && <tr><td colSpan={2}><div className="table-empty">No monthly data yet.</div></td></tr>}
+      </tbody></table></div>
+    </Card>)}
+  </div>;
 }
 
 function App() {
