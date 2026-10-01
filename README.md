@@ -83,7 +83,7 @@ Before production use, verify each endpoint with the real secrets, confirm the d
 
 ## Product Analytics: Google Sheet connection
 
-The Product Analytics navigation tab reads `Monthly Overview` from **Disty GA4 Data** through the protected `/api/analytics` endpoint. It has compact monthly tables for Sessions (visits) and Active Users, newest month first, without search, pagination or table filters. The current month is labeled month to date. It does not add users across months or apply sales filters to GA4 totals.
+The Product Analytics navigation tab reads `Monthly Overview` from **Disty GA4 Data** through the protected `/api/analytics` endpoint. It has bar charts for Sessions (visits) and Active Users in chronological order. A shared Month filter supports selecting one or several months, with all months shown by default. The current month is labeled month to date. It does not add users across months or apply sales filters to GA4 totals.
 
 Configure these Cloudflare Pages production variables:
 

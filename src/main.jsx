@@ -258,6 +258,7 @@ function ProductAnalytics({ refreshKey, onUpdated }) {
   const [state, setState] = useState("loading");
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [selectedMonths, setSelectedMonths] = useState([]);
   useEffect(() => {
     const controller = new AbortController();
     setState("loading"); setError(""); onUpdated(null);
@@ -274,15 +275,26 @@ function ProductAnalytics({ refreshKey, onUpdated }) {
   const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit" }).formatToParts(new Date());
   const current = `${currentMonth.find(part => part.type === "year").value}-${currentMonth.find(part => part.type === "month").value}`;
   const monthLabel = month => new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
-  const sortedRows = [...rows].sort((a, b) => b.month.localeCompare(a.month));
-  return <div className="two-col monthly-analytics">
-    {[["visits", "Visits", "Sessions"], ["activeUsers", "Active users", "Unique users per month"]].map(([key, title, subtitle]) => <Card key={key} title={title} subtitle={subtitle} className="monthly-card">
-      <div className="table-wrap"><table aria-label={`${title} by month`}><thead><tr><th scope="col">Month</th><th scope="col">{title}</th></tr></thead><tbody>
-        {sortedRows.map(row => <tr key={row.month}><td>{monthLabel(row.month)} {row.month === current && <span className="month-to-date" title="Month to date">MTD</span>}</td><td>{integer.format(row[key])}</td></tr>)}
-        {!sortedRows.length && <tr><td colSpan={2}><div className="table-empty">No monthly data yet.</div></td></tr>}
-      </tbody></table></div>
-    </Card>)}
-  </div>;
+  const sortedRows = [...rows].sort((a, b) => a.month.localeCompare(b.month));
+  const availableMonths = sortedRows.map(row => monthLabel(row.month)).reverse();
+  const visibleRows = sortedRows.filter(row => !selectedMonths.length || selectedMonths.includes(monthLabel(row.month)));
+  const chartRows = visibleRows.map(row => ({ ...row, monthLabel: `${monthLabel(row.month)}${row.month === current ? " · MTD" : ""}` }));
+  return <>
+    <div className="analytics-month-filter"><MultiSelect label="Month" options={availableMonths} values={selectedMonths} onChange={setSelectedMonths}/><span className="muted small">{visibleRows.length} {visibleRows.length === 1 ? "month" : "months"}</span></div>
+    <div className="two-col monthly-analytics">
+      {[["visits", "Visits", "Sessions"], ["activeUsers", "Active users", "Unique users per month"]].map(([key, title, subtitle]) => <Card key={key} title={title} subtitle={subtitle} className="monthly-card">
+        {chartRows.length ? <ResponsiveContainer width="100%" height={300}><BarChart data={chartRows} accessibilityLayer margin={{ top: 12, right: 12, left: -12, bottom: 42 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E7E8EE"/>
+          <XAxis dataKey="monthLabel" interval="preserveStartEnd" angle={-35} textAnchor="end" height={60} tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/>
+          <YAxis allowDecimals={false} domain={[0, "auto"]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/>
+          <Tooltip content={chartTooltip} cursor={{ fill: "#f4efff" }}/>
+          <Bar dataKey={key} name={title} fill={PURPLE} radius={[5, 5, 0, 0]} maxBarSize={44}>
+            {chartRows.map(row => <Cell key={row.month} fill={row.month === current ? "#A07BEF" : PURPLE}/>)}
+          </Bar>
+        </BarChart></ResponsiveContainer> : <EmptyChart text="No data for the selected months."/>}
+      </Card>)}
+    </div>
+  </>;
 }
 
 function App() {
