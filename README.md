@@ -92,3 +92,11 @@ Configure these Cloudflare Pages production variables:
 - `GA4_WEBSITE_ONLY_VERIFIED`: keep unset until the source Monthly Overview report is confirmed to use a Web-only GA4 filter. Set `true` only after confirmation. The UI does not display a website-only verification notice.
 
 The ChatGPT Google Drive connection does not grant the deployed dashboard access. No sheet data is embedded in the public repository. Missing access shows an explicit connection message rather than zeros or stale sample data. Refresh reads the source again. The existing authenticated API middleware protects this endpoint, and responses are not cached.
+
+## Ads analytics
+
+The Ads navigation page reads Google Ads Monthly, Google Ads Campaigns, Google Ads Ad Groups and Google Ads Ads through the authenticated `/api/ads` endpoint, using the existing Google Sheet credentials. It includes six overview metrics, monthly Spend/Impressions/Clicks bar charts, and monthly, campaign, ad group and individual ad comparison tables. Shared Month and Campaign filters apply to every report; exports contain the filtered results.
+
+Overview and monthly reports use only the monthly source when no campaign is selected, and campaign rows when campaigns are selected. Hierarchy levels are never added together. CTR, CPC, CPM, CPA and ROAS are recomputed from summed underlying metrics. CPA is unavailable when conversions are zero, and attributed conversion fractions are preserved. Ads and ad group status describe their own source status; the latest selected month determines the displayed status.
+
+Monetary values use the Google Ads account currency. The source does not include its currency code, so the UI initially labels this as account currency without assuming SAR. Set optional `GOOGLE_ADS_CURRENCY` to the verified account currency code to display it explicitly. No new Google credentials or data-sharing changes are required.

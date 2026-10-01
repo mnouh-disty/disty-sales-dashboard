@@ -10,6 +10,7 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import "./styles.css";
+import { adsTotals, adsGrouped } from "./ads-data.js";
 import { buildMonthlyRetention } from "./retention.js";
 
 const PURPLE = "#511DCE";
@@ -297,7 +298,54 @@ function ProductAnalytics({ refreshKey, onUpdated }) {
   </>;
 }
 
+function AdsPage({ refreshKey, onUpdated }) {
+  const [data, setData] = useState({ monthly: [], campaigns: [], adGroups: [], ads: [] });
+  const [state, setState] = useState("loading"); const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0); const [months, setMonths] = useState([]); const [campaigns, setCampaigns] = useState([]);
+  useEffect(() => {
+    const controller = new AbortController(); setState("loading"); setError(""); onUpdated(null);
+    fetch("/api/ads", { signal: controller.signal }).then(async response => {
+      const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "Could not load Ads data.");
+      setData(payload); onUpdated(payload.updatedAt); setState("ready");
+    }).catch(failure => { if (!controller.signal.aborted) { setError(failure.message); setState("error"); } });
+    return () => controller.abort();
+  }, [refreshKey, retry, onUpdated]);
+  if (state === "loading") return <div className="empty-page"><RefreshCw className="spin" size={32}/><h2>Loading Ads analytics</h2><p>Reading Google Ads reports…</p></div>;
+  if (state === "error") return <div className="empty-page error-state"><X size={32}/><h2>Ads analytics is unavailable</h2><p>{error}</p><button className="primary" onClick={() => setRetry(value => value + 1)}>Retry</button></div>;
+  const monthLabel = month => new Intl.DateTimeFormat("en-GB", {month:"short",year:"numeric",timeZone:"UTC"}).format(new Date(`${month}-01T00:00:00Z`));
+  const monthOptions = [...new Set([...data.monthly,...data.campaigns].map(row => row.month))].sort().reverse().map(monthLabel);
+  const campaignOptions = distinct(data.campaigns, "campaign");
+  const matches = row => (!months.length || months.includes(monthLabel(row.month))) && (!campaigns.length || campaigns.includes(row.campaign));
+  const monthlySource = campaigns.length ? data.campaigns.filter(matches) : data.monthly.filter(matches);
+  const totals = adsTotals(monthlySource);
+  const monthlyRows = adsGrouped(monthlySource,["month"]).sort((a,b) => a.month.localeCompare(b.month)).map(row => ({...row,monthLabel:monthLabel(row.month)}));
+  const campaignRows = adsGrouped(data.campaigns.filter(matches),["campaignId"]);
+  const groupRows = adsGrouped(data.adGroups.filter(matches),["campaign","adGroupId"]);
+  const adRows = adsGrouped(data.ads.filter(matches),["campaign","adGroup","adId"]);
+  const decimal = new Intl.NumberFormat("en-SA",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const amount = value => value == null ? "—" : `${data.currency ? `${data.currency} ` : ""}${decimal.format(value)}`;
+  const rate = value => value == null ? "—" : `${decimal.format(value)}%`;
+  const count = value => new Intl.NumberFormat("en-SA",{maximumFractionDigits:2}).format(value);
+  const countColumns = [["impressions","Impressions"],["clicks","Clicks"]].map(([key,label]) => ({key,label,render:row=>count(row[key])}));
+  const metricColumns = [ {key:"spend",label:"Spend",render:row=>amount(row.spend)}, ...countColumns, {key:"ctr",label:"CTR",render:row=>rate(row.ctr)}, {key:"cpc",label:"Avg CPC",render:row=>amount(row.cpc)}, {key:"cpm",label:"CPM",render:row=>amount(row.cpm)}, {key:"conversions",label:"Conversions",render:row=>count(row.conversions)}, {key:"conversionValue",label:"Conversion value",render:row=>amount(row.conversionValue)}, {key:"cpa",label:"CPA",render:row=>amount(row.cpa)}, {key:"roas",label:"ROAS",render:row=>row.roas == null ? "—" : `${decimal.format(row.roas)}×`} ];
+  const currentMonth = Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit"}).formatToParts(new Date()).filter(part=>part.type!=="literal").map(part=>[part.type,part.value]));
+  const current = `${currentMonth.year}-${currentMonth.month}`;
+  const chartTooltipAds = ({active,payload,label}) => active && payload?.length ? <div className="chart-tooltip"><strong>{label}</strong>{payload.map(item=><p key={item.dataKey}>{item.name}: {item.dataKey === "spend" ? amount(item.value) : count(item.value)}</p>)}</div> : null;
+  return <>
+    <div className="ads-filters"><MultiSelect label="Month" options={monthOptions} values={months} onChange={setMonths}/><MultiSelect label="Campaign" searchable options={campaignOptions} values={campaigns} onChange={setCampaigns}/>{(months.length>0 || campaigns.length>0) && <button className="logout" onClick={()=>{setMonths([]);setCampaigns([]);}}>Clear filters</button>}</div>
+    <div className="kpi-grid ads-kpis">{[[WalletCards,"Spend",amount(totals.spend),data.currency || "Google Ads account currency"],[BarChart3,"Impressions",count(totals.impressions),"Ad exposures"],[Search,"Clicks",count(totals.clicks),"Ad clicks"],[BarChart3,"CTR",rate(totals.ctr),"Clicks / impressions"],[CircleDollarSign,"Average CPC",amount(totals.cpc),"Spend / clicks"],[CircleDollarSign,"CPM",amount(totals.cpm),"Spend per 1,000 impressions"]].map(([icon,label,value,note])=><Kpi key={label} icon={icon} label={label} value={value} note={note}/>)}</div>
+    <div className="ads-chart-grid">{[["spend","Spend"],["impressions","Impressions"],["clicks","Clicks"]].map(([key,title])=><Card key={key} title={`${title} by month`} subtitle={key==="spend" ? (data.currency || "Google Ads account currency") : "Monthly Google Ads performance"}>
+      {monthlyRows.length ? <ResponsiveContainer width="100%" height={250}><BarChart data={monthlyRows.map(row=>({...row,monthLabel:`${row.monthLabel}${row.month===current ? " · MTD" : ""}`}))} accessibilityLayer margin={{top:12,right:12,left:-10,bottom:30}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E7E8EE"/><XAxis dataKey="monthLabel" tick={{fontSize:10}} axisLine={false} tickLine={false}/><YAxis allowDecimals={key==="spend"} tick={{fontSize:10}} axisLine={false} tickLine={false}/><Tooltip content={chartTooltipAds}/><Bar dataKey={key} name={title} fill={PURPLE} radius={[5,5,0,0]} maxBarSize={48}/></BarChart></ResponsiveContainer> : <EmptyChart/>}
+    </Card>)}</div>
+    <DataTable title="Monthly performance" subtitle="Rates calculated from the selected totals" rows={monthlyRows} columns={[{key:"month",label:"Month",render:row=>`${row.monthLabel}${row.month===current ? " · MTD" : ""}`},...metricColumns]} filename="disty-ads-monthly.csv" initialSort={{key:"month",dir:"desc"}}/>
+    <DataTable title="Campaign performance" subtitle="Compare budget allocation and results" rows={campaignRows} columns={[{key:"campaign",label:"Campaign"},{key:"campaignType",label:"Type"},{key:"status",label:"Status"},...metricColumns]} filename="disty-ads-campaigns.csv" initialSort={{key:"spend",dir:"desc"}}/>
+    <DataTable title="Ad group performance" subtitle="Compare groups within each campaign" rows={groupRows} columns={[{key:"campaign",label:"Campaign"},{key:"adGroup",label:"Ad group"},{key:"status",label:"Status"},...metricColumns]} filename="disty-ads-ad-groups.csv" initialSort={{key:"spend",dir:"desc"}}/>
+    <DataTable title="Ad performance" subtitle="Individual ads grouped by campaign and ad group" rows={adRows} columns={[{key:"campaign",label:"Campaign"},{key:"adGroup",label:"Ad group"},{key:"adId",label:"Ad ID"},{key:"adType",label:"Ad type"},{key:"status",label:"Status"},...metricColumns]} filename="disty-ads-ads.csv" initialSort={{key:"spend",dir:"desc"}}/>
+  </>;
+}
+
 function App() {
+  const [adsRefresh, setAdsRefresh] = useState(0); const [adsUpdated, setAdsUpdated] = useState(null);
   const [analyticsRefresh, setAnalyticsRefresh] = useState(0); const [analyticsUpdated, setAnalyticsUpdated] = useState(null);
   const [auth, setAuth] = useState("checking"); const [page, setPage] = useState("overview"); const [period, setPeriod] = useState("month"); const [filters, setFilters] = useState(initialFilters);
   const [datasets, setDatasets] = useState({ orders: [], customers: [], products: [] }); const [status, setStatus] = useState("idle"); const [errors, setErrors] = useState({}); const [updatedAt, setUpdatedAt] = useState(null); const [refreshing, setRefreshing] = useState(false);
@@ -317,13 +365,13 @@ function App() {
   if (auth !== "authenticated") return <Login onAuthenticated={() => setAuth("authenticated")}/>;
   const currentRows = page === "orders" ? filtered.ordersFiltered : page === "customers" ? filtered.customersFiltered : page === "products" ? filtered.productsFiltered : filtered.ordersFiltered;
   const pageError = page === "overview" ? Object.values(errors).join(" ") : errors[page];
-  const title = { overview: "Sales Analytics", customers: "Customer Analytics", orders: "Order Analytics", products: "Product Sales Analytics", analytics: "Product Analytics" }[page];
-  const subtitles = { overview: "Monitor sales, customer growth and product performance.", customers: "Understand registrations, verification and customer profiles.", orders: "Analyze commercial performance and order behavior.", analytics: "Monthly visits and active users from Disty GA4 Data.", products: "Track item sales, quantities and product-level performance." };
-  const nav = [["overview", LayoutDashboard, "Overview"], ["customers", Users, "Customers"], ["orders", ShoppingCart, "Orders"], ["products", Boxes, "Products"], ["analytics", BarChart3, "Product Analytics"]];
+  const title = { overview: "Sales Analytics", customers: "Customer Analytics", orders: "Order Analytics", products: "Product Sales Analytics", analytics: "Product Analytics", ads: "Ads Analytics" }[page];
+  const subtitles = { overview: "Monitor sales, customer growth and product performance.", customers: "Understand registrations, verification and customer profiles.", orders: "Analyze commercial performance and order behavior.", ads: "Monitor Google Ads spend, traffic and campaign performance.", analytics: "Monthly visits and active users from Disty GA4 Data.", products: "Track item sales, quantities and product-level performance." };
+  const nav = [["overview", LayoutDashboard, "Overview"], ["customers", Users, "Customers"], ["orders", ShoppingCart, "Orders"], ["products", Boxes, "Products"], ["analytics", BarChart3, "Product Analytics"], ["ads", Tags, "Ads"]];
   return <div className="app-shell"><aside className="sidebar"><div className="logo"><span>D</span><div><strong>disty</strong><small>Sales analytics</small></div></div><nav>{nav.map(([key, Icon, label]) => <button key={key} className={page === key ? "active" : ""} onClick={() => setPage(key)}><Icon size={18}/>{label}</button>)}</nav><div className="sidebar-foot"><span className="live-dot"/>Protected live data</div></aside><main className="dashboard">
-    <header className="topbar"><div><p className="breadcrumb">Analytics / {page}</p><h1>{title}</h1><p>{subtitles[page]}</p></div><div className="top-actions"><div className="updated"><span className="live-dot"/><div><small>Last updated</small><strong>{(page === "analytics" ? analyticsUpdated : updatedAt) ? dateTimeFmt.format(validDate(page === "analytics" ? analyticsUpdated : updatedAt)) : "—"}</strong></div></div><button className="refresh" onClick={() => page === "analytics" ? setAnalyticsRefresh(value => value + 1) : load(true)} disabled={refreshing && page !== "analytics"}><RefreshCw size={16} className={refreshing ? "spin" : ""}/>{refreshing ? "Refreshing" : "Refresh data"}</button><button className="logout" onClick={logout}><LogOut size={16}/>Logout</button></div></header>
-    {page !== "analytics" && <GlobalFilters page={page} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} orders={datasets.orders} customers={datasets.customers} products={datasets.products}/>}
-    {page === "analytics" ? <ProductAnalytics refreshKey={analyticsRefresh} onUpdated={setAnalyticsUpdated}/> : status === "loading" ? <div className="empty-page"><RefreshCw size={32} className="spin"/><h2>Loading live analytics</h2><p>Retrieving protected dashboard data…</p></div> : status === "error" ? <div className="empty-page error-state"><X size={34}/><h2>We couldn’t load the dashboard</h2><p>{pageError}</p><button className="primary" onClick={() => load()}><RefreshCw size={16}/>Retry</button></div> : pageError ? <div className="inline-error"><div><strong>Some {page} data could not be loaded.</strong><span>{pageError}</span></div><button onClick={() => load()}><RefreshCw size={15}/>Retry</button></div> : !currentRows.length ? <div className="empty-page"><PackageSearch size={34}/><h2>No data found</h2><p>The endpoint returned no valid rows for this page or the current filters.</p><button className="primary" onClick={() => setFilters(initialFilters)}><X size={16}/>Reset filters</button></div> : <>
+    <header className="topbar"><div><p className="breadcrumb">Analytics / {page}</p><h1>{title}</h1><p>{subtitles[page]}</p></div><div className="top-actions"><div className="updated"><span className="live-dot"/><div><small>Last updated</small><strong>{(page === "ads" ? adsUpdated : page === "analytics" ? analyticsUpdated : updatedAt) ? dateTimeFmt.format(validDate(page === "ads" ? adsUpdated : page === "analytics" ? analyticsUpdated : updatedAt)) : "—"}</strong></div></div><button className="refresh" onClick={() => page === "ads" ? setAdsRefresh(value => value + 1) : page === "analytics" ? setAnalyticsRefresh(value => value + 1) : load(true)} disabled={refreshing && !["analytics","ads"].includes(page)}><RefreshCw size={16} className={refreshing ? "spin" : ""}/>{refreshing ? "Refreshing" : "Refresh data"}</button><button className="logout" onClick={logout}><LogOut size={16}/>Logout</button></div></header>
+    {!["analytics","ads"].includes(page) && <GlobalFilters page={page} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} orders={datasets.orders} customers={datasets.customers} products={datasets.products}/>}
+    {page === "ads" ? <AdsPage refreshKey={adsRefresh} onUpdated={setAdsUpdated}/> : page === "analytics" ? <ProductAnalytics refreshKey={analyticsRefresh} onUpdated={setAnalyticsUpdated}/> : status === "loading" ? <div className="empty-page"><RefreshCw size={32} className="spin"/><h2>Loading live analytics</h2><p>Retrieving protected dashboard data…</p></div> : status === "error" ? <div className="empty-page error-state"><X size={34}/><h2>We couldn’t load the dashboard</h2><p>{pageError}</p><button className="primary" onClick={() => load()}><RefreshCw size={16}/>Retry</button></div> : pageError ? <div className="inline-error"><div><strong>Some {page} data could not be loaded.</strong><span>{pageError}</span></div><button onClick={() => load()}><RefreshCw size={15}/>Retry</button></div> : !currentRows.length ? <div className="empty-page"><PackageSearch size={34}/><h2>No data found</h2><p>The endpoint returned no valid rows for this page or the current filters.</p><button className="primary" onClick={() => setFilters(initialFilters)}><X size={16}/>Reset filters</button></div> : <>
       {page === "overview" && <Overview orders={filtered.ordersFiltered} customers={filtered.customersFiltered} products={filtered.productsFiltered} period={period} setPeriod={setPeriod}/>} {page === "customers" && <CustomersPage rows={filtered.customersFiltered} period={period}/>} {page === "orders" && <OrdersPage rows={filtered.ordersFiltered} period={period}/>} {page === "products" && <ProductsPage rows={filtered.productsFiltered} period={period}/>} </>}
     <footer>Disty internal analytics · Protected server-side data · Asia/Riyadh</footer>
   </main></div>;
