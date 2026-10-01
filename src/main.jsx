@@ -253,7 +253,39 @@ function Login({ onAuthenticated }) {
   return <main className="login-screen"><section className="login-card"><div className="login-brand"><span>D</span><div><strong>disty</strong><small>Internal analytics</small></div></div><div className="login-icon"><LockKeyhole size={24}/></div><h1>Welcome back</h1><p>Enter the shared dashboard password to continue.</p><form onSubmit={submit}><label><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter password" required autoFocus/></label>{error && <div className="login-error">{error}</div>}<button className="primary" disabled={loading}>{loading ? <RefreshCw size={16} className="spin"/> : <LockKeyhole size={16}/>} {loading ? "Signing in…" : "Sign in"}</button></form><small className="secure-note">Protected Disty dashboard · 12-hour secure session</small></section></main>;
 }
 
+function ProductAnalytics({ refreshKey, onUpdated }) {
+  const [rows, setRows] = useState([]);
+  const [state, setState] = useState("loading");
+  const [error, setError] = useState("");
+  const [websiteOnly, setWebsiteOnly] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setState("loading"); setError(""); onUpdated(null);
+    fetch("/api/analytics", { signal: controller.signal }).then(async response => {
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not load product analytics.");
+      setRows(payload.analytics || []); setWebsiteOnly(payload.websiteOnlyVerified === true);
+      onUpdated(payload.updatedAt); setState("ready");
+    }).catch(failure => { if (!controller.signal.aborted) { setError(failure.message); setState("error"); } });
+    return () => controller.abort();
+  }, [refreshKey, retry, onUpdated]);
+  if (state === "loading") return <div className="empty-page"><RefreshCw size={32} className="spin"/><h2>Loading product analytics</h2><p>Reading monthly figures from Disty GA4 Data…</p></div>;
+  if (state === "error") return <div className="empty-page error-state"><X size={34}/><h2>Product analytics is unavailable</h2><p>{error}</p><button className="primary" onClick={() => setRetry(value => value + 1)}>Retry</button></div>;
+  const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+  const current = `${currentMonth.find(part => part.type === "year").value}-${currentMonth.find(part => part.type === "month").value}`;
+  const monthColumn = { key: "month", label: "Month", render: row => `${new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${row.month}-01T00:00:00Z`))}${row.month === current ? " · Month to date" : ""}` };
+  return <>
+    {!websiteOnly && <div className="inline-error" role="status"><div><strong>Website-only traffic is unverified.</strong><span>These figures come from Monthly Overview and may include app traffic. Filter the source report to Web before treating them as website metrics.</span></div></div>}
+    <div className="two-col">
+      <DataTable title="Visits by month" subtitle="GA4 Sessions · Monthly Overview" rows={rows} columns={[monthColumn, { key: "visits", label: "Visits (Sessions)", render: row => integer.format(row.visits) }]} filename="disty-monthly-visits.csv" initialSort={{ key: "month", dir: "desc" }}/>
+      <DataTable title="Active users by month" subtitle="GA4 Active Users · Unique within each month" rows={rows} columns={[monthColumn, { key: "activeUsers", label: "Active users", render: row => integer.format(row.activeUsers) }]} filename="disty-monthly-active-users.csv" initialSort={{ key: "month", dir: "desc" }}/>
+    </div>
+  </>;
+}
+
 function App() {
+  const [analyticsRefresh, setAnalyticsRefresh] = useState(0); const [analyticsUpdated, setAnalyticsUpdated] = useState(null);
   const [auth, setAuth] = useState("checking"); const [page, setPage] = useState("overview"); const [period, setPeriod] = useState("month"); const [filters, setFilters] = useState(initialFilters);
   const [datasets, setDatasets] = useState({ orders: [], customers: [], products: [] }); const [status, setStatus] = useState("idle"); const [errors, setErrors] = useState({}); const [updatedAt, setUpdatedAt] = useState(null); const [refreshing, setRefreshing] = useState(false);
   useEffect(() => { fetch("/api/auth/session").then((response) => setAuth(response.ok ? "authenticated" : "anonymous")).catch(() => setAuth("anonymous")); }, []);
@@ -272,13 +304,13 @@ function App() {
   if (auth !== "authenticated") return <Login onAuthenticated={() => setAuth("authenticated")}/>;
   const currentRows = page === "orders" ? filtered.ordersFiltered : page === "customers" ? filtered.customersFiltered : page === "products" ? filtered.productsFiltered : filtered.ordersFiltered;
   const pageError = page === "overview" ? Object.values(errors).join(" ") : errors[page];
-  const title = { overview: "Sales Analytics", customers: "Customer Analytics", orders: "Order Analytics", products: "Product Analytics" }[page];
-  const subtitles = { overview: "Monitor sales, customer growth and product performance.", customers: "Understand registrations, verification and customer profiles.", orders: "Analyze commercial performance and order behavior.", products: "Track item sales, quantities and product-level performance." };
-  const nav = [["overview", LayoutDashboard, "Overview"], ["customers", Users, "Customers"], ["orders", ShoppingCart, "Orders"], ["products", Boxes, "Products"]];
+  const title = { overview: "Sales Analytics", customers: "Customer Analytics", orders: "Order Analytics", products: "Product Sales Analytics", analytics: "Product Analytics" }[page];
+  const subtitles = { overview: "Monitor sales, customer growth and product performance.", customers: "Understand registrations, verification and customer profiles.", orders: "Analyze commercial performance and order behavior.", analytics: "Monthly visits and active users from Disty GA4 Data.", products: "Track item sales, quantities and product-level performance." };
+  const nav = [["overview", LayoutDashboard, "Overview"], ["customers", Users, "Customers"], ["orders", ShoppingCart, "Orders"], ["products", Boxes, "Products"], ["analytics", BarChart3, "Product Analytics"]];
   return <div className="app-shell"><aside className="sidebar"><div className="logo"><span>D</span><div><strong>disty</strong><small>Sales analytics</small></div></div><nav>{nav.map(([key, Icon, label]) => <button key={key} className={page === key ? "active" : ""} onClick={() => setPage(key)}><Icon size={18}/>{label}</button>)}</nav><div className="sidebar-foot"><span className="live-dot"/>Protected live data</div></aside><main className="dashboard">
-    <header className="topbar"><div><p className="breadcrumb">Analytics / {page}</p><h1>{title}</h1><p>{subtitles[page]}</p></div><div className="top-actions"><div className="updated"><span className="live-dot"/><div><small>Last updated</small><strong>{updatedAt ? dateTimeFmt.format(validDate(updatedAt)) : "—"}</strong></div></div><button className="refresh" onClick={() => load(true)} disabled={refreshing}><RefreshCw size={16} className={refreshing ? "spin" : ""}/>{refreshing ? "Refreshing" : "Refresh data"}</button><button className="logout" onClick={logout}><LogOut size={16}/>Logout</button></div></header>
-    <GlobalFilters page={page} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} orders={datasets.orders} customers={datasets.customers} products={datasets.products}/>
-    {status === "loading" ? <div className="empty-page"><RefreshCw size={32} className="spin"/><h2>Loading live analytics</h2><p>Retrieving protected dashboard data…</p></div> : status === "error" ? <div className="empty-page error-state"><X size={34}/><h2>We couldn’t load the dashboard</h2><p>{pageError}</p><button className="primary" onClick={() => load()}><RefreshCw size={16}/>Retry</button></div> : pageError ? <div className="inline-error"><div><strong>Some {page} data could not be loaded.</strong><span>{pageError}</span></div><button onClick={() => load()}><RefreshCw size={15}/>Retry</button></div> : !currentRows.length ? <div className="empty-page"><PackageSearch size={34}/><h2>No data found</h2><p>The endpoint returned no valid rows for this page or the current filters.</p><button className="primary" onClick={() => setFilters(initialFilters)}><X size={16}/>Reset filters</button></div> : <>
+    <header className="topbar"><div><p className="breadcrumb">Analytics / {page}</p><h1>{title}</h1><p>{subtitles[page]}</p></div><div className="top-actions"><div className="updated"><span className="live-dot"/><div><small>Last updated</small><strong>{(page === "analytics" ? analyticsUpdated : updatedAt) ? dateTimeFmt.format(validDate(page === "analytics" ? analyticsUpdated : updatedAt)) : "—"}</strong></div></div><button className="refresh" onClick={() => page === "analytics" ? setAnalyticsRefresh(value => value + 1) : load(true)} disabled={refreshing && page !== "analytics"}><RefreshCw size={16} className={refreshing ? "spin" : ""}/>{refreshing ? "Refreshing" : "Refresh data"}</button><button className="logout" onClick={logout}><LogOut size={16}/>Logout</button></div></header>
+    {page !== "analytics" && <GlobalFilters page={page} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} orders={datasets.orders} customers={datasets.customers} products={datasets.products}/>}
+    {page === "analytics" ? <ProductAnalytics refreshKey={analyticsRefresh} onUpdated={setAnalyticsUpdated}/> : status === "loading" ? <div className="empty-page"><RefreshCw size={32} className="spin"/><h2>Loading live analytics</h2><p>Retrieving protected dashboard data…</p></div> : status === "error" ? <div className="empty-page error-state"><X size={34}/><h2>We couldn’t load the dashboard</h2><p>{pageError}</p><button className="primary" onClick={() => load()}><RefreshCw size={16}/>Retry</button></div> : pageError ? <div className="inline-error"><div><strong>Some {page} data could not be loaded.</strong><span>{pageError}</span></div><button onClick={() => load()}><RefreshCw size={15}/>Retry</button></div> : !currentRows.length ? <div className="empty-page"><PackageSearch size={34}/><h2>No data found</h2><p>The endpoint returned no valid rows for this page or the current filters.</p><button className="primary" onClick={() => setFilters(initialFilters)}><X size={16}/>Reset filters</button></div> : <>
       {page === "overview" && <Overview orders={filtered.ordersFiltered} customers={filtered.customersFiltered} products={filtered.productsFiltered} period={period} setPeriod={setPeriod}/>} {page === "customers" && <CustomersPage rows={filtered.customersFiltered} period={period}/>} {page === "orders" && <OrdersPage rows={filtered.ordersFiltered} period={period}/>} {page === "products" && <ProductsPage rows={filtered.productsFiltered} period={period}/>} </>}
     <footer>Disty internal analytics · Protected server-side data · Asia/Riyadh</footer>
   </main></div>;

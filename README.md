@@ -80,3 +80,15 @@ npm run build
 ```
 
 Before production use, verify each endpoint with the real secrets, confirm the dashboard pages and filters, and inspect the browser Network and Storage panels. The browser should call only same-origin `/api/*` routes; Redash URLs, query keys, API keys and `DASHBOARD_PASSWORD` must not appear in frontend bundles, page source, browser storage, request URLs, logs or JSON responses.
+
+## Product Analytics: Google Sheet connection
+
+The Product Analytics navigation tab reads `Monthly Overview` from **Disty GA4 Data** through the protected `/api/analytics` endpoint. It has separate monthly tables for Sessions (visits) and Active Users, newest month first. The current month is labeled month to date. It does not add users across months or apply sales filters to GA4 totals.
+
+Configure these Cloudflare Pages production variables:
+
+- `GA4_SPREADSHEET_ID`: the exact ID of your existing Disty GA4 Data sheet
+- `GA4_GOOGLE_SERVICE_ACCOUNT_JSON` (encrypted secret): the complete JSON key for a Google service account with the Google Sheets API enabled. Grant its `client_email` Viewer access to the existing sheet. Never paste the key into Git or the frontend.
+- `GA4_WEBSITE_ONLY_VERIFIED`: keep unset until the source Monthly Overview report is confirmed to use a Web-only GA4 filter. Set `true` only after confirmation.
+
+The ChatGPT Google Drive connection does not grant the deployed dashboard access. No sheet data is embedded in the public repository. Missing access shows an explicit connection message rather than zeros or stale sample data. Refresh reads the source again. The existing authenticated API middleware protects this endpoint, and responses are not cached.
