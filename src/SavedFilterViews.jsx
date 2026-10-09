@@ -31,9 +31,9 @@ export default function SavedFilterViews({filters,period,setFilters,setPeriod,st
   const title={new:'New filter view',update:'Update filter view',rename:'Rename filter view',delete:'Delete filter view'}[mode]||'Filter view';
   return <div className="saved-views" aria-label="Saved filter views">
     <div className="saved-view-picker">
-      <select aria-label="Saved filter view" value={selected} onChange={e=>{const view=views.find(v=>v.id===e.target.value);if(view)apply(view);else {setSelected('');setMessage('');}}}>
+      <label className="saved-view-field"><span className="filter-label">Saved view</span><select aria-label="Saved filter view" value={selected} onChange={e=>{const view=views.find(v=>v.id===e.target.value);if(view)apply(view);else {setSelected('');setMessage('');}}}>
         <option value="">Custom filters</option>{views.map(v=><option key={v.id} value={v.id}>{v.name}{selected===v.id&&modified?' · modified':''}</option>)}
-      </select>
+      </select></label>
       {modified&&<button type="button" className="filter-tool-button" onClick={()=>apply(active)}>Reapply</button>}
       <button type="button" className="filter-tool-button" onClick={()=>open('new')}><Plus size={14}/>New view</button>
       {active&&<details className="view-menu" ref={menu}><summary aria-label="Manage selected view" title="Manage view"><Settings2 size={15}/></summary><div>

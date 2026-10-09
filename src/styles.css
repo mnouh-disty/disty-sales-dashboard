@@ -45,15 +45,15 @@ footer { color:#9898a2; font-size:10px; text-align:center; padding:5px 0 20px; }
 .monthly-analytics { align-items:start; }
 .monthly-card .card-head { margin-bottom:12px; }
 .analytics-month-filter { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
-.analytics-month-filter .multi-select { width:220px; }
+.analytics-month-filter .multi-field { width:220px; }
 
 .ads-filters { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-bottom:18px; }
-.ads-filters .multi-select { width:220px; }
-.ads-filters .multi-select:nth-child(2) { width:350px; max-width:100%; }
+.ads-filters .multi-field { width:220px; }
+.ads-filters .multi-field:nth-child(2) { width:350px; max-width:100%; }
 .ads-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .ads-chart-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-bottom:18px; }
 @media (max-width:1100px) { .ads-chart-grid { grid-template-columns:1fr; } }
-@media (max-width:720px) { .ads-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .ads-filters .multi-select { width:100%; } }
+@media (max-width:720px) { .ads-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .ads-filters .multi-field { width:100%; } }
 @media (max-width:460px) { .ads-kpis { grid-template-columns:1fr; } }
 
 
@@ -114,3 +114,23 @@ input::placeholder {color:#8e8e99} button:focus-visible,a:focus-visible,summary:
 .view-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}.view-dialog-actions .refresh{font-size:12px}
 @media(max-width:720px){.filter-toolbar{gap:8px}.compact-filters .saved-views{flex-basis:100%}.compact-dates{flex:1}.saved-view-picker select{max-width:none}.filter-toolbar .filter-expand{margin-left:auto}}
 @media(max-width:460px){.filter-toolbar{padding:10px}.compact-dates{gap:2px}.compact-dates .filter-tool-button{padding:6px;font-size:10px}}
+
+/* One label position and baseline for every filter control. */
+.filter-grid,.social-filter-grid{align-items:end;row-gap:12px}
+.multi-field{min-width:0}
+.filter-label,.date-field>span,.select-field>span{display:block;font-size:10px;font-weight:400;line-height:14px;color:#a1a1aa;margin-bottom:5px}
+.multi-select summary{flex-direction:row;align-items:center;justify-content:space-between;gap:8px;height:38px}
+.multi-select summary svg{flex:0 0 auto;color:#a1a1aa}
+.multi-select summary strong{font-size:12px;font-weight:400}
+.multi-menu{top:calc(100% + 4px);max-width:min(300px,calc(100vw - 50px))}
+.saved-view-field{min-width:140px;max-width:240px;flex:1}
+.saved-view-field select{width:100%;max-width:none}
+.saved-view-picker,.filter-toolbar,.ads-filters,.analytics-month-filter{align-items:flex-end}
+/* Metric widgets hug their contents and wrap into new rows as needed. */
+.kpi-grid{display:flex;flex-wrap:wrap;align-items:stretch;gap:12px}
+.kpi-grid .kpi-card{flex:0 1 auto;width:max-content;max-width:100%;padding:16px 20px}
+.kpi-card>div:last-child{min-width:0}
+.kpi-card h3{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.kpi-card .eyebrow,.kpi-card .kpi-note{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+@media(max-width:720px){.saved-view-field{max-width:none}}
+@media(max-width:460px){.kpi-grid .kpi-card{padding:14px 16px}}

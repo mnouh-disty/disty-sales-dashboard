@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  BarChart3, Boxes, Check, ChevronLeft, ChevronRight, CircleDollarSign, Download,
+  BarChart3, Boxes, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Download,
   LayoutDashboard, ListFilter, LockKeyhole, LogOut, PackageSearch, RefreshCw,
   Search, ShoppingCart, Tags, Users, WalletCards, X,
 } from "lucide-react";
@@ -82,14 +82,16 @@ const downloadCsv = (filename, columns, rows) => {
 
 function MultiSelect({ label, options, values, onChange, searchable = false }) {
   const [query, setQuery] = useState("");
+  const labelId = useId();
+  const valueId = useId();
   const visible = options.filter((option) => option.toLowerCase().includes(query.toLowerCase()));
   const toggle = (option) => onChange(values.includes(option) ? values.filter((value) => value !== option) : [...values, option]);
-  return <details className="multi-select"><summary><span>{label}</span><strong>{values.length ? `${values.length} selected` : "All"}</strong></summary><div className="multi-menu">
+  return <div className="multi-field"><span className="filter-label" id={labelId}>{label}</span><details className="multi-select"><summary aria-labelledby={`${labelId} ${valueId}`}><strong id={valueId}>{values.length ? `${values.length} selected` : "All"}</strong><ChevronDown size={14} aria-hidden="true"/></summary><div className="multi-menu">
     {searchable && <label className="mini-search"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${label.toLowerCase()}`}/></label>}
     {!!values.length && <button className="clear-selection" onClick={() => onChange([])}>Clear selection</button>}
     <div className="option-list">{visible.map((option) => <label key={option} className="check-option"><input type="checkbox" checked={values.includes(option)} onChange={() => toggle(option)}/><span className="fake-check"><Check size={12}/></span><span>{option}</span></label>)}</div>
     {!visible.length && <p className="muted small">No matches</p>}
-  </div></details>;
+  </div></details></div>;
 }
 
 function ToggleFilter({ label, options, values, onChange }) {
@@ -143,6 +145,12 @@ const calendarDate = (year, month, day) => `${year}-${String(month).padStart(2, 
 const datePresetRange = (preset) => {
   if (preset === "all") return { start: "", end: "" };
   const today = riyadhParts();
+  if (preset === "last-30-days") {
+    const end = new Date(Date.UTC(today.year, today.month - 1, today.day));
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 29);
+    return { start: calendarDate(start.getUTCFullYear(), start.getUTCMonth() + 1, start.getUTCDate()), end: calendarDate(today.year, today.month, today.day) };
+  }
   const currentStart = new Date(Date.UTC(today.year, today.month - 1, 1));
   const startOffset = preset === "last-month" ? -1 : preset === "last-3-months" ? -2 : 0;
   const start = new Date(Date.UTC(currentStart.getUTCFullYear(), currentStart.getUTCMonth() + startOffset, 1));
@@ -161,7 +169,7 @@ function GlobalFilters({ page, period, setPeriod, filters, setFilters, orders, c
   const dateSummary = filters.start || filters.end ? `${filters.start || "Beginning"} → ${filters.end || "Today"}` : "All time";
   return <section className="filter-card compact-filters"><div className="filter-toolbar">
     <SavedFilterViews filters={filters} period={period} setFilters={setFilters} setPeriod={setPeriod} storageError={storageError} onConfigure={() => setOpen(true)}/>
-    <div className="compact-dates" aria-label="Quick dates">{[["current-month", "This month"], ["last-month", "Last month"], ["last-3-months", "3 months"], ["all", "All time"]].map(([key, label]) => <button type="button" key={key} className={`filter-tool-button ${presetActive(key) ? "active" : ""}`} aria-pressed={presetActive(key)} onClick={() => applyPreset(key)}>{label}</button>)}<button type="button" className="filter-tool-button" title={dateSummary} onClick={() => setOpen(true)}>Custom dates</button></div>
+    <div className="compact-dates" aria-label="Quick dates">{[["current-month", "This month"], ["last-month", "Last month"], ["last-30-days", "Last 30 days"], ["last-3-months", "3 months"], ["all", "All time"]].map(([key, label]) => <button type="button" key={key} className={`filter-tool-button ${presetActive(key) ? "active" : ""}`} aria-pressed={presetActive(key)} onClick={() => applyPreset(key)}>{label}</button>)}<button type="button" className="filter-tool-button" title={dateSummary} onClick={() => setOpen(true)}>Custom dates</button></div>
     <button type="button" className={`filter-tool-button filter-expand ${open ? "active" : ""}`} aria-expanded={open} aria-controls="global-filter-details" onClick={() => setOpen(!open)}><ListFilter size={15}/>{open ? "Hide filters" : "Filters"}{activeCount > 0 && <span className="filter-count">{activeCount}</span>}</button>
   </div>{(filters.start || filters.end) && <div className="compact-date-summary">{dateSummary}</div>}{open && <div className="filter-body" id="global-filter-details">
     <div className="filter-grid"><label className="date-field"><span>Start date</span><input type="date" value={filters.start} onChange={(event) => set("start", event.target.value)}/></label><label className="date-field"><span>End date</span><input type="date" value={filters.end} onChange={(event) => set("end", event.target.value)}/></label>{page !== "overview" && <label className="select-field"><span>Time view</span><select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="day">Daily</option><option value="week">Weekly</option><option value="month">Monthly</option></select></label>}
