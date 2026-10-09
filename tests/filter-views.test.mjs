@@ -1,8 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialFilters,VIEWS_KEY,CURRENT_KEY,normalizeFilters,snapshot,readViews,readCurrent,saveView,sameSnapshot,matchesPlatform} from '../src/filter-views.js';
+import {initialFilters,VIEWS_KEY,CURRENT_KEY,SELECTED_VIEW_KEY,normalizeFilters,snapshot,readViews,readCurrent,saveView,sameSnapshot,sameViewCriteria,applyView,readSelectedView,matchesPlatform} from '../src/filter-views.js';
 import {normalizeOrders} from '../functions/_shared/redash.js';
 const memory=()=>{const data=new Map();return {getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)};};
+test('applying a view replaces other filters but keeps current dates, including all time',()=>{
+ const view={id:'saved',name:'Marketplace',...snapshot({sources:['marketplace'],platforms:['ios'],start:'2026-01-01',end:'2026-12-31'},'week')};
+ const applied=applyView(view,{start:'2026-10-01',end:'2026-10-09',cities:['Riyadh'],wallet:'with'});
+ assert.equal(applied.filters.start,'2026-10-01');assert.equal(applied.filters.end,'2026-10-09');assert.deepEqual(applied.filters.cities,[]);assert.equal(applied.filters.wallet,'all');assert.deepEqual(applied.filters.sources,['marketplace']);assert.equal(applied.period,'week');
+ assert.equal(applyView(view,initialFilters).filters.start,'');assert.equal(applyView(view,initialFilters).filters.end,'');assert.equal(view.filters.start,'2026-01-01');
+ assert.equal(sameViewCriteria(view,applied),true);assert.equal(sameViewCriteria(view,{...applied,filters:{...applied.filters,sources:['other']}}),false);
+});
+test('date changes keep the selected saved view after reopening even with overlapping views',()=>{
+ const storage=memory();const views=[{id:'first',...snapshot({sources:['marketplace']},'month')},{id:'second',...snapshot({sources:['marketplace']},'month')}];
+ storage.setItem(SELECTED_VIEW_KEY,'second');const changed=snapshot({sources:['marketplace'],start:'2026-09-01',end:'2026-09-30'},'month');
+ assert.equal(readSelectedView(storage,views,changed),'second');assert.equal(sameViewCriteria(views[1],changed),true);
+ storage.setItem(SELECTED_VIEW_KEY,'deleted');assert.equal(readSelectedView(storage,views,changed),'first');
+});
 test('named snapshots survive storage reload and replace rather than merge current filters',()=>{
  const storage=memory();const saved=saveView([],{id:'one',name:' Customer orders ',filters:{sources:['marketplace'],platforms:['ios','android'],platformPresence:'set',orderStates:['fulfilled'],includeExcluded:true,start:'2026-10-01',end:'2026-10-31'},period:'week'});
  storage.setItem(VIEWS_KEY,JSON.stringify(saved));const loaded=readViews(storage);assert.equal(loaded[0].name,'Customer orders');assert.equal(loaded[0].period,'week');

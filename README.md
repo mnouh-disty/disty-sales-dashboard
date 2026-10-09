@@ -112,9 +112,9 @@ Post engagement is cumulative as of its last metric read, not engagement earned 
 
 ## Saved filter views
 
-Overview, Orders, Customers and Products support named saved filter views. A view stores every global filter, exact date range and Day/Week/Month setting. Clicking its name replaces the complete current filter state rather than merging selections. Save as new creates a separate view; Update selected replaces its filters or renames it; Delete selected removes the saved entry. Manual filter changes do not overwrite a saved view.
+Overview, Orders, Customers and Products support named saved filter views. A view applies every non-date global filter and the Day/Week/Month setting. Clicking its name replaces those filters rather than merging selections, while preserving the currently chosen start/end dates. Date changes do not deselect or modify a saved view. Save as new creates a separate view; Update selected replaces its filters or renames it; Delete selected removes the saved entry. Manual filter changes do not overwrite a saved view.
 
-Named views and current global filters persist in localStorage on this browser and site origin, so refreshing or closing/reopening preserves them. They are not synchronized across devices or browsers, and clearing site storage removes them. Storage errors are shown instead of reporting a false save success. Dates are fixed as saved.
+Named views and current global filters persist in localStorage on this browser and site origin, so refreshing or closing/reopening preserves them. They are not synchronized across devices or browsers, and clearing site storage removes them. Storage errors are shown instead of reporting a false save success. Dates are independent of saved views; current dates and the selected view identity survive reopening in the same browser.
 
 Orders now preserve the Redash platform field, expose a Platform multi-select and blank/nonblank filter in Overview/Orders, and include Platform in the order table and CSV export. Refresh data bypasses cached order results after the query column is added.
 

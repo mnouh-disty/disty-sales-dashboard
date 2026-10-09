@@ -1,6 +1,7 @@
 export const initialFilters = { start:'', end:'', customers:[], erps:[], cities:[], sources:[], platforms:[], platformPresence:'all', entities:[], verification:'all', paymentMethods:[], paymentStatuses:[], orderTypes:[], orderStates:[], mada:'all', discount:'all', wallet:'all', includeExcluded:false };
 export const VIEWS_KEY='disty.filter-views.v1';
 export const CURRENT_KEY='disty.current-filters.v1';
+export const SELECTED_VIEW_KEY='disty.selected-filter-view.v1';
 export function browserStorage() {try{return window.localStorage;}catch{return null;}}
 export function normalizeFilters(value={}) {
   const result={};
@@ -16,6 +17,21 @@ export function normalizeFilters(value={}) {
 }
 export function snapshot(filters,period) {return {filters:normalizeFilters(filters),period:['day','week','month'].includes(period)?period:'month'};}
 export function sameSnapshot(left,right) {return JSON.stringify(snapshot(left.filters,left.period))===JSON.stringify(snapshot(right.filters,right.period));}
+export function sameViewCriteria(left,right) {
+  const a=snapshot(left.filters,left.period),b=snapshot(right.filters,right.period);
+  a.filters.start=a.filters.end=b.filters.start=b.filters.end='';
+  return sameSnapshot(a,b);
+}
+export function applyView(view,currentFilters) {
+  const result=snapshot(view.filters,view.period),current=normalizeFilters(currentFilters);
+  result.filters.start=current.start;
+  result.filters.end=current.end;
+  return result;
+}
+export function readSelectedView(storage,views,current) {
+  try {const id=storage.getItem(SELECTED_VIEW_KEY);if(views.some(v=>v.id===id))return id;}catch{}
+  return views.find(v=>sameViewCriteria(v,current))?.id||'';
+}
 export function readCurrent(storage) {try{return snapshot(...(()=>{const r=JSON.parse(storage.getItem(CURRENT_KEY)||'{}');return [r.filters,r.period];})());}catch{return snapshot();}}
 export function readViews(storage) {
   try {
