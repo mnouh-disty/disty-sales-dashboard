@@ -10,6 +10,20 @@ test('missing metrics remain unknown, zero remains zero and long IDs are preserv
  assert.deepEqual(metricTotal(data.posts,'interactions'),{value:8,known:1,total:2});
  assert.equal(metricTotal([], 'likes').value,null);
 });
+test('connection diagnostics identify token mismatch, Google HTML and busy sync without leaking upstream data',async()=>{
+ const previous=globalThis.fetch;
+ const context={env:{SOCIAL_SYNC_URL:'https://script.google.com/macros/s/test/exec',SOCIAL_SYNC_TOKEN:' private-token '}};
+ try {
+  globalThis.fetch=async url=>{assert.equal(url.searchParams.get('token'),'private-token');return Response.json({ok:false,error:'Unauthorized'});};
+  assert.equal((await (await onRequestGet(context)).json()).code,'token_mismatch');
+  globalThis.fetch=async()=>new Response('<html>private-token</html>');
+  const html=await (await onRequestGet(context)).json();assert.equal(html.code,'google_non_json');assert.equal(JSON.stringify(html).includes('private-token'),false);
+  globalThis.fetch=async()=>Response.json({ok:false,error:'Sync in progress. Retry shortly.'});
+  assert.equal((await (await onRequestGet(context)).json()).code,'sync_busy');
+  globalThis.fetch=async()=>Response.json({ok:false,error:'secret-from-upstream'});
+  assert.equal(JSON.stringify(await (await onRequestGet(context)).json()).includes('secret-from-upstream'),false);
+ } finally {globalThis.fetch=previous;}
+});
 test('growth uses prior baseline and end cutoff, never sums follower snapshots',()=>{
  const accounts=[{platform:'x',date:'2026-10-08',followers:300},{platform:'x',date:'2026-10-09',followers:310},{platform:'x',date:'2026-10-10',followers:307},{platform:'x',date:'2026-10-11',followers:500}];
  const [result]=accountSummary(accounts,['x'],'2026-10-09','2026-10-10');assert.equal(result.followers,307);assert.equal(result.growth,7);assert.equal(result.baseline,'2026-10-08');assert.equal(result.partial,false);
