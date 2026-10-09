@@ -100,3 +100,12 @@ The Ads navigation page reads Google Ads Monthly, Google Ads Campaigns, Google A
 Overview and monthly reports use only the monthly source when no campaign is selected, and campaign rows when campaigns are selected. Hierarchy levels are never added together. CTR, CPC, CPM, CPA and ROAS are recomputed from summed underlying metrics. CPA is unavailable when conversions are zero, and attributed conversion fractions are preserved. Ads and ad group status describe their own source status; the latest selected month determines the displayed status.
 
 Monetary values use the Google Ads account currency. The source does not include its currency code, so the UI initially labels this as account currency without assuming SAR. Set optional `GOOGLE_ADS_CURRENCY` to the verified account currency code to display it explicitly. No new Google credentials or data-sharing changes are required.
+
+
+## Social Media analytics
+
+The Social Media navigation page reads the saved Disty Social Analytics sheet through the authenticated /api/social endpoint. It includes platform and publication-date filters, daily/weekly/monthly publishing charts, cumulative engagement, daily follower snapshots, net follower growth, platform comparisons, searchable sortable post details, filtered CSV export, and sync status. Missing metrics remain unavailable and coverage is shown.
+
+Set encrypted Cloudflare Production secrets SOCIAL_SYNC_URL (Google Apps Script deployed /exec URL) and SOCIAL_SYNC_TOKEN (matching DISTY_DASHBOARD_TOKEN Script Property). The existing daily sync continues at approximately 8–9 AM Riyadh time. Refresh reads saved sheet data and does not call publishing providers.
+
+Post engagement is cumulative as of its last metric read, not engagement earned during the selected dates. Followers use platform/date filters only; growth requires two snapshots and includes unfollows. The actual growth baseline is shown when the selected period precedes available history.

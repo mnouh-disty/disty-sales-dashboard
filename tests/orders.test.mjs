@@ -30,10 +30,11 @@ test("derives chronological year_month from valid created_at", () => {
 });
 
 test("rejects a non-array Redash rows payload", () => {
-  assert.throws(() => normalizeRows({}), /invalid rows payload/i);
+  assert.throws(() => normalizeRows({}), /invalid_rows/);
 });
 
 test("endpoint returns normalized data without exposing its secret", async () => {
+  const originalCaches = globalThis.caches;
   const stored = new Map();
   globalThis.caches = { default: {
     match: async (request) => stored.get(request.url)?.clone(),
@@ -49,7 +50,7 @@ test("endpoint returns normalized data without exposing its secret", async () =>
   try {
     const response = await onRequest({
       request: new Request("https://dashboard.example.com/api/orders"),
-      env: { REDASH_BASE_URL: "https://bi.disty.app", REDASH_QUERY_ID: "219", REDASH_QUERY_API_KEY: "super-secret-value", DASHBOARD_ORIGIN: "https://dashboard.example.com" },
+      env: { REDASH_ORDERS_QUERY_URL: "https://bi.disty.app/api/queries/263/results.json", REDASH_QUERY_API_KEY: "super-secret-value", DASHBOARD_ORIGIN: "https://dashboard.example.com" },
       waitUntil: (promise) => promise,
     });
     const text = await response.text();
@@ -60,5 +61,7 @@ test("endpoint returns normalized data without exposing its secret", async () =>
     assert.equal(payload.orders[0].total, 25.5);
   } finally {
     globalThis.fetch = originalFetch;
+    globalThis.caches = originalCaches;
   }
 });
+
