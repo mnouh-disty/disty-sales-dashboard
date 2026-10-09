@@ -50,6 +50,7 @@ export function normalizeOrders(rows) {
       verification_status: verificationStatus(raw),
       city: clean(raw.city),
       source: clean(raw.source),
+      platform: clean(raw.platform),
       payment_method: clean(raw.payment_method),
       payment_status: clean(raw.payment_status),
       order_type: clean(raw.order_type),
