@@ -16,8 +16,8 @@ import { initialFilters, CURRENT_KEY, readCurrent, snapshot, matchesPlatform, br
 import { adsTotals, adsGrouped } from "./ads-data.js";
 import { buildMonthlyRetention } from "./retention.js";
 
-const PURPLE = "#511DCE";
-const COLORS = [PURPLE, "#7B48E6", "#A07BEF", "#C0A6F6", "#DDD0FB", "#301080", "#2476E8", "#1AA36F"];
+const PURPLE = "#a78bfa";
+const COLORS = [PURPLE, "#8c72bd", "#c4b0e7", "#6f6689", "#d9cbed", "#9c99b3", "#8da8c9", "#91b6a3"];
 const CANCELLED = new Set(["cancelled", "canceled", "rejected", "failed", "deleted"]);
 const money = new Intl.NumberFormat("en-SA", { style: "currency", currency: "SAR", minimumFractionDigits: 2 });
 const integer = new Intl.NumberFormat("en-SA", { maximumFractionDigits: 1 });
@@ -110,12 +110,12 @@ function EmptyChart({ text: message = "No data for the current filters." }) { re
 const chartTooltip = ({ active, payload, label }) => active && payload?.length ? <div className="chart-tooltip"><strong>{label ?? payload[0]?.payload?.name}</strong>{payload.map((item) => <p key={item.dataKey || item.name}>{item.name}: {item.name?.toLowerCase().includes("sales") || item.name?.toLowerCase().includes("value") ? money.format(item.value) : integer.format(item.value)}</p>)}</div> : null;
 
 function TrendChart({ data, name, moneyValue = false }) {
-  return data.length ? <ResponsiveContainer width="100%" height={285}><LineChart data={data} margin={{ top: 12, right: 14, left: moneyValue ? 8 : -18, bottom: 6 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E7E8EE"/><XAxis dataKey="periodLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/><YAxis tickFormatter={(value) => moneyValue ? `${Math.round(value / 1000)}k` : value} allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/><Tooltip content={chartTooltip}/><Line type="monotone" dataKey="value" name={name} stroke={PURPLE} strokeWidth={2.5} dot={{ r: 3, fill: PURPLE }} activeDot={{ r: 5 }}/></LineChart></ResponsiveContainer> : <EmptyChart/>;
+  return data.length ? <ResponsiveContainer width="100%" height={285}><LineChart data={data} margin={{ top: 12, right: 14, left: moneyValue ? 8 : -18, bottom: 6 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#303036"/><XAxis dataKey="periodLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/><YAxis tickFormatter={(value) => moneyValue ? `${Math.round(value / 1000)}k` : value} allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/><Tooltip content={chartTooltip}/><Line type="monotone" dataKey="value" name={name} stroke={PURPLE} strokeWidth={2.5} dot={{ r: 3, fill: PURPLE }} activeDot={{ r: 5 }}/></LineChart></ResponsiveContainer> : <EmptyChart/>;
 }
 
 function CategoryChart({ data, name = "Orders", moneyValue = false, limit = 12 }) {
   const shown = data.slice(0, limit);
-  return shown.length ? <ResponsiveContainer width="100%" height={250}><BarChart data={shown} margin={{ top: 12, right: 10, left: moneyValue ? 6 : -18, bottom: 42 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E7E8EE"/><XAxis dataKey="name" angle={-24} textAnchor="end" interval={0} tick={{ fontSize: 9 }} axisLine={false} tickLine={false}/><YAxis tickFormatter={(value) => moneyValue ? `${Math.round(value / 1000)}k` : value} allowDecimals={false} tick={{ fontSize: 9 }} axisLine={false} tickLine={false}/><Tooltip content={chartTooltip}/><Bar dataKey="value" name={name} fill={PURPLE} radius={[5, 5, 0, 0]} maxBarSize={36}/></BarChart></ResponsiveContainer> : <EmptyChart/>;
+  return shown.length ? <ResponsiveContainer width="100%" height={250}><BarChart data={shown} margin={{ top: 12, right: 10, left: moneyValue ? 6 : -18, bottom: 42 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#303036"/><XAxis dataKey="name" angle={-24} textAnchor="end" interval={0} tick={{ fontSize: 9 }} axisLine={false} tickLine={false}/><YAxis tickFormatter={(value) => moneyValue ? `${Math.round(value / 1000)}k` : value} allowDecimals={false} tick={{ fontSize: 9 }} axisLine={false} tickLine={false}/><Tooltip content={chartTooltip}/><Bar dataKey="value" name={name} fill={PURPLE} radius={[5, 5, 0, 0]} maxBarSize={36}/></BarChart></ResponsiveContainer> : <EmptyChart/>;
 }
 
 function Donut({ title, data }) {
@@ -215,9 +215,9 @@ function Overview({ orders, customers, products, period, setPeriod }) {
 function RetentionHeatmap({ orders }) {
   const { rows, maxOffset } = useMemo(() => buildMonthlyRetention(orders), [orders]);
   const monthLabel = (key) => { const [year, month] = key.split("-").map(Number); return new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1))); };
-  const heatColor = (percentage) => percentage === 0 ? "#f4f1fc" : `rgba(81,29,206,${Math.min(.88, .16 + percentage / 125)})`;
+  const heatColor = (percentage) => percentage === 0 ? "#18151f" : `rgba(121,85,174,${Math.min(.85, .15 + percentage / 125)})`;
   return <Card title="Monthly customer retention" subtitle="Customers grouped by their first order month; Month 1 shows how many ordered again the following month.">
-    {rows.length ? <div className="retention-wrap"><table className="retention-table"><thead><tr><th>Customer cohort</th>{Array.from({ length: maxOffset + 1 }, (_, offset) => <th key={offset}>Month {offset}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.cohortMonth}><th><strong>{monthLabel(row.cohortMonth)}</strong><span>{integer.format(row.size)} customers</span></th>{Array.from({ length: maxOffset + 1 }, (_, offset) => { const cell = row.retention[offset]; return <td key={offset} className={!cell ? "not-available" : ""} style={cell ? { background: heatColor(cell.percentage), color: cell.percentage >= 55 ? "white" : "#301080" } : undefined} title={cell ? `${cell.retained} of ${row.size} customers` : "Not available"}>{cell ? `${cell.percentage.toFixed(1)}%` : "—"}</td>; })}</tr>)}</tbody></table></div> : <EmptyChart text="Retention needs customers with valid order dates."/>}
+    {rows.length ? <div className="retention-wrap"><table className="retention-table"><thead><tr><th>Customer cohort</th>{Array.from({ length: maxOffset + 1 }, (_, offset) => <th key={offset}>Month {offset}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.cohortMonth}><th><strong>{monthLabel(row.cohortMonth)}</strong><span>{integer.format(row.size)} customers</span></th>{Array.from({ length: maxOffset + 1 }, (_, offset) => { const cell = row.retention[offset]; return <td key={offset} className={!cell ? "not-available" : ""} style={cell ? { background: heatColor(cell.percentage), color: "#e9defa" } : undefined} title={cell ? `${cell.retained} of ${row.size} customers` : "Not available"}>{cell ? `${cell.percentage.toFixed(1)}%` : "—"}</td>; })}</tr>)}</tbody></table></div> : <EmptyChart text="Retention needs customers with valid order dates."/>}
   </Card>;
 }
 
@@ -288,10 +288,10 @@ function ProductAnalytics({ refreshKey, onUpdated }) {
     <div className="two-col monthly-analytics">
       {[["visits", "Visits", "Sessions"], ["activeUsers", "Active users", "Unique users per month"]].map(([key, title, subtitle]) => <Card key={key} title={title} subtitle={subtitle} className="monthly-card">
         {chartRows.length ? <ResponsiveContainer width="100%" height={300}><BarChart data={chartRows} accessibilityLayer margin={{ top: 12, right: 12, left: -12, bottom: 42 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E7E8EE"/>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#303036"/>
           <XAxis dataKey="monthLabel" interval="preserveStartEnd" angle={-35} textAnchor="end" height={60} tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/>
           <YAxis allowDecimals={false} domain={[0, "auto"]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false}/>
-          <Tooltip content={chartTooltip} cursor={{ fill: "#f4efff" }}/>
+          <Tooltip content={chartTooltip} cursor={{ fill: "#ffffff05" }}/>
           <Bar dataKey={key} name={title} fill={PURPLE} radius={[5, 5, 0, 0]} maxBarSize={44}>
             {chartRows.map(row => <Cell key={row.month} fill={row.month === current ? "#A07BEF" : PURPLE}/>)}
           </Bar>
@@ -338,7 +338,7 @@ function AdsPage({ refreshKey, onUpdated }) {
     <div className="ads-filters"><MultiSelect label="Month" options={monthOptions} values={months} onChange={setMonths}/><MultiSelect label="Campaign" searchable options={campaignOptions} values={campaigns} onChange={setCampaigns}/>{(months.length>0 || campaigns.length>0) && <button className="logout" onClick={()=>{setMonths([]);setCampaigns([]);}}>Clear filters</button>}</div>
     <div className="kpi-grid ads-kpis">{[[WalletCards,"Spend",amount(totals.spend),data.currency || "Google Ads account currency"],[BarChart3,"Impressions",count(totals.impressions),"Ad exposures"],[Search,"Clicks",count(totals.clicks),"Ad clicks"],[BarChart3,"CTR",rate(totals.ctr),"Clicks / impressions"],[CircleDollarSign,"Average CPC",amount(totals.cpc),"Spend / clicks"],[CircleDollarSign,"CPM",amount(totals.cpm),"Spend per 1,000 impressions"]].map(([icon,label,value,note])=><Kpi key={label} icon={icon} label={label} value={value} note={note}/>)}</div>
     <div className="ads-chart-grid">{[["spend","Spend"],["impressions","Impressions"],["clicks","Clicks"]].map(([key,title])=><Card key={key} title={`${title} by month`} subtitle={key==="spend" ? (data.currency || "Google Ads account currency") : "Monthly Google Ads performance"}>
-      {monthlyRows.length ? <ResponsiveContainer width="100%" height={250}><BarChart data={monthlyRows.map(row=>({...row,monthLabel:`${row.monthLabel}${row.month===current ? " · MTD" : ""}`}))} accessibilityLayer margin={{top:12,right:12,left:-10,bottom:30}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E7E8EE"/><XAxis dataKey="monthLabel" tick={{fontSize:10}} axisLine={false} tickLine={false}/><YAxis allowDecimals={key==="spend"} tick={{fontSize:10}} axisLine={false} tickLine={false}/><Tooltip content={chartTooltipAds}/><Bar dataKey={key} name={title} fill={PURPLE} radius={[5,5,0,0]} maxBarSize={48}/></BarChart></ResponsiveContainer> : <EmptyChart/>}
+      {monthlyRows.length ? <ResponsiveContainer width="100%" height={250}><BarChart data={monthlyRows.map(row=>({...row,monthLabel:`${row.monthLabel}${row.month===current ? " · MTD" : ""}`}))} accessibilityLayer margin={{top:12,right:12,left:-10,bottom:30}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#303036"/><XAxis dataKey="monthLabel" tick={{fontSize:10}} axisLine={false} tickLine={false}/><YAxis allowDecimals={key==="spend"} tick={{fontSize:10}} axisLine={false} tickLine={false}/><Tooltip content={chartTooltipAds}/><Bar dataKey={key} name={title} fill={PURPLE} radius={[5,5,0,0]} maxBarSize={48}/></BarChart></ResponsiveContainer> : <EmptyChart/>}
     </Card>)}</div>
     <DataTable title="Monthly performance" subtitle="Rates calculated from the selected totals" rows={monthlyRows} columns={[{key:"month",label:"Month",render:row=>`${row.monthLabel}${row.month===current ? " · MTD" : ""}`},...metricColumns]} filename="disty-ads-monthly.csv" initialSort={{key:"month",dir:"desc"}}/>
     <DataTable title="Campaign performance" subtitle="Compare budget allocation and results" rows={campaignRows} columns={[{key:"campaign",label:"Campaign"},{key:"campaignType",label:"Type"},{key:"status",label:"Status"},...metricColumns]} filename="disty-ads-campaigns.csv" initialSort={{key:"spend",dir:"desc"}}/>

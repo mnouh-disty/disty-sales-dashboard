@@ -117,3 +117,7 @@ Overview, Orders, Customers and Products support named saved filter views. A vie
 Named views and current global filters persist in localStorage on this browser and site origin, so refreshing or closing/reopening preserves them. They are not synchronized across devices or browsers, and clearing site storage removes them. Storage errors are shown instead of reporting a false save success. Dates are fixed as saved.
 
 Orders now preserve the Redash platform field, expose a Platform multi-select and blank/nonblank filter in Overview/Orders, and include Platform in the order table and CSV export. Refresh data bypasses cached order results after the query column is added.
+
+## Dark appearance
+
+The dashboard and login use a default near-black theme with charcoal surfaces, readable gray text, subtle borders and restrained purple accents. Charts, tooltips, retention cells, controls, saved filter views and error states use the same dark palette. Browser-native form controls use color-scheme: dark.

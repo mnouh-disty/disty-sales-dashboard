@@ -3,7 +3,7 @@ import {RefreshCw,Download,Users,Heart,MessageCircle,Share2,FileText} from 'luci
 import {ResponsiveContainer,BarChart,Bar,LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,Legend} from 'recharts';
 import {PLATFORMS,LABELS,day,normalizeSocial,metricTotal,accountSummary,postTrend,followerTrend,csv} from './social.js';
 
-const colors=['#511dce','#2379dd','#222b3d','#eb4680','#15a17b'];
+const colors=['#a78bfa','#8da8c9','#b8b8c4','#c6a0b6','#91b6a3'];
 const format=v=>v==null?'—':new Intl.NumberFormat('en-GB',{maximumFractionDigits:1}).format(v);
 const stamp=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Riyadh',dateStyle:'medium',timeStyle:'short'}).format(d):'—';};
 const columns=[['platform','Platform'],['published','Publish date'],['content','Content'],['likes','Likes'],['comments','Comments'],['shares','Shares'],['interactions','Interactions'],['views','Views'],['reach','Reach'],['impressions','Impressions'],['saves','Saves'],['status','Metric status'],['readAt','Metrics read at'],['url','Post URL']].map(([key,label])=>({key,label}));
