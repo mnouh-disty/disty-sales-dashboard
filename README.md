@@ -121,3 +121,5 @@ Orders now preserve the Redash platform field, expose a Platform multi-select an
 ## Dark appearance
 
 The dashboard and login use a default near-black theme with charcoal surfaces, readable gray text, subtle borders and restrained purple accents. Charts, tooltips, retention cells, controls, saved filter views and error states use the same dark palette. Browser-native form controls use color-scheme: dark.
+
+Global filters use a compact saved-view picker and quick dates. Detailed criteria open with Filters; New view opens a naming dialog. Selected views can be renamed, updated or deleted from the settings menu. Applying a view preserves the current dates, and changing dates keeps the view selected. Views remain saved in this browser.

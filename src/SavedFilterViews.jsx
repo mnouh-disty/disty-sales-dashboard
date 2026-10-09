@@ -1,18 +1,53 @@
-import React,{useEffect,useState} from 'react';
-import {Save,Trash2} from 'lucide-react';
+import React,{useEffect,useRef,useState} from 'react';
+import {Plus,Settings2,X} from 'lucide-react';
 import {VIEWS_KEY,SELECTED_VIEW_KEY,readViews,saveView,applyView,sameViewCriteria,readSelectedView,browserStorage} from './filter-views.js';
 
-export default function SavedFilterViews({filters,period,setFilters,setPeriod,storageError}) {
+export default function SavedFilterViews({filters,period,setFilters,setPeriod,storageError,onConfigure}) {
   const [views,setViews]=useState(()=>readViews(browserStorage()));
   const [selected,setSelected]=useState(()=>readSelectedView(browserStorage(),views,{filters,period}));
-  const [name,setName]=useState(()=>views.find(v=>v.id===selected)?.name||''),[error,setError]=useState(''),[message,setMessage]=useState('');
-  useEffect(()=>{try{window.localStorage.setItem(SELECTED_VIEW_KEY,selected);}catch{setError('The selected view could not be remembered in this browser. Allow site storage.');}},[selected]);
-  useEffect(()=>{const handle=e=>{if(e.key===VIEWS_KEY){setViews(readViews(window.localStorage));setSelected('');setName('');}};window.addEventListener('storage',handle);return()=>window.removeEventListener('storage',handle);},[]);
+  const [name,setName]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState(''),[mode,setMode]=useState('');
+  const dialog=useRef(null),menu=useRef(null);
   const active=views.find(v=>v.id===selected);
   const modified=active&&!sameViewCriteria(active,{filters,period});
+  useEffect(()=>{try{window.localStorage.setItem(SELECTED_VIEW_KEY,selected);}catch{setError('The selected view could not be remembered. Allow site storage.');}},[selected]);
+  useEffect(()=>{const handle=e=>{if(e.key===VIEWS_KEY){setViews(readViews(browserStorage()));setSelected('');setMode('');}};window.addEventListener('storage',handle);return()=>window.removeEventListener('storage',handle);},[]);
+  useEffect(()=>{if(mode&&!dialog.current.open)dialog.current.showModal();else if(!mode&&dialog.current.open)dialog.current.close();},[mode]);
   const persist=next=>{try{window.localStorage.setItem(VIEWS_KEY,JSON.stringify(next));setViews(next);setError('');return true;}catch{setError('Your browser could not save the view. Allow site storage or free some space, then try again.');return false;}};
-  function save(update=false){setMessage('');try{const id=update?selected:crypto.randomUUID();const next=saveView(views,{id,name,filters,period});if(persist(next)){setSelected(id);setName(name.trim());setMessage(update?'View updated.':'View saved.');}}catch(e){setError(e.message);}}
-  function apply(view){const copy=applyView(view,filters);setFilters(copy.filters);setPeriod(copy.period);setSelected(view.id);setName(view.name);setError('');setMessage('View applied. Other filters replaced; your dates kept.');}
-  function remove(){if(!active)return;const next=views.filter(v=>v.id!==selected);if(persist(next)){setSelected('');setName('');setMessage('View deleted. Your current filters are unchanged.');}}
-  return <section className="saved-views" aria-label="Saved filter views"><div className="saved-views-title"><strong>Saved filter views</strong><span>Saved views apply your filters and time view. Dates stay independent—you can change them without deselecting the view. Saved in this browser.</span></div><div className="saved-view-buttons">{views.map(v=><button type="button" key={v.id} className={selected===v.id&&!modified?'active':''} aria-pressed={selected===v.id&&!modified} onClick={()=>apply(v)}>{v.name}</button>)}{!views.length&&<span className="muted small">Choose your filters below, enter a name and save your first view.</span>}</div><div className="saved-view-controls"><label><span>View name</span><input value={name} maxLength={80} placeholder="e.g. Marketplace fulfilled" onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();save();}}}/></label><button type="button" className="refresh" onClick={()=>save()}><Save size={15}/>Save as new</button>{active&&<><button type="button" className="logout" onClick={()=>save(true)}>Update selected</button><button type="button" className="logout" onClick={remove}><Trash2 size={15}/>Delete selected</button><span className="muted small">{modified?'Selected view has unsaved filter changes.':`Selected: ${active.name}`}</span></>}</div>{(error||storageError)&&<p className="saved-view-error" role="alert">{error||storageError}</p>}{message&&<p className="saved-view-message" role="status">{message}</p>}</section>;
+  function open(next){if(menu.current)menu.current.open=false;setName(next==='new'?'':active?.name||'');setError('');setMessage('');setMode(next);}
+  function save(event){
+    event.preventDefault();
+    if(mode==='delete'){
+      if(active&&persist(views.filter(v=>v.id!==selected))){setSelected('');setMode('');setMessage('View deleted. Current filters kept.');}return;
+    }
+    if(mode!=='new'&&!active){setError('This view is no longer available.');return;}
+    try{
+      const id=mode==='new'?crypto.randomUUID():selected;
+      const criteria=mode==='rename'?active:{filters,period};
+      const next=saveView(views,{id,name,filters:criteria.filters,period:criteria.period});
+      if(persist(next)){setSelected(id);setMode('');setMessage(mode==='new'?'View saved.':'View updated.');}
+    }catch(e){setError(e.message);}
+  }
+  function apply(view){const copy=applyView(view,filters);setFilters(copy.filters);setPeriod(copy.period);setSelected(view.id);setError('');setMessage('');}
+  const title={new:'New filter view',update:'Update filter view',rename:'Rename filter view',delete:'Delete filter view'}[mode]||'Filter view';
+  return <div className="saved-views" aria-label="Saved filter views">
+    <div className="saved-view-picker">
+      <select aria-label="Saved filter view" value={selected} onChange={e=>{const view=views.find(v=>v.id===e.target.value);if(view)apply(view);else {setSelected('');setMessage('');}}}>
+        <option value="">Custom filters</option>{views.map(v=><option key={v.id} value={v.id}>{v.name}{selected===v.id&&modified?' · modified':''}</option>)}
+      </select>
+      {modified&&<button type="button" className="filter-tool-button" onClick={()=>apply(active)}>Reapply</button>}
+      <button type="button" className="filter-tool-button" onClick={()=>open('new')}><Plus size={14}/>New view</button>
+      {active&&<details className="view-menu" ref={menu}><summary aria-label="Manage selected view" title="Manage view"><Settings2 size={15}/></summary><div>
+        <button type="button" onClick={()=>open('update')}>Update with current filters</button><button type="button" onClick={()=>open('rename')}>Rename</button><button type="button" onClick={()=>open('delete')}>Delete</button>
+      </div></details>}
+    </div>
+    {!mode&&(error||storageError)&&<p className="saved-view-error" role="alert">{error||storageError}</p>}
+    {message&&<span className="saved-view-message" role="status">{message}</span>}
+    <dialog ref={dialog} className="view-dialog" aria-labelledby="view-dialog-title" onCancel={()=>setMode('')} onClick={e=>{if(e.target===dialog.current){const r=dialog.current.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setMode('');}}}>
+      <form onSubmit={save}><div className="view-dialog-heading"><h2 id="view-dialog-title">{title}</h2><button type="button" className="filter-tool-button" aria-label="Close dialog" onClick={()=>setMode('')}><X size={16}/></button></div>
+        {mode==='delete'?<p>Delete “{active?.name}”? Your current filters will stay in place.</p>:<><label className="view-name"><span>View name</span><input autoFocus required maxLength={80} value={name} placeholder="e.g. Marketplace fulfilled" onChange={e=>setName(e.target.value)}/></label><p>{mode==='rename'?'Only the name changes.': 'Saves your current filters and time grouping. Dates stay independent. Views are saved in this browser.'}</p>{mode==='new'&&<button type="button" className="filter-tool-button" onClick={()=>{setMode('');onConfigure();}}>Choose filters first</button>}</>}
+        {(error||storageError)&&<p className="saved-view-error" role="alert">{error||storageError}</p>}
+        <div className="view-dialog-actions"><button type="button" className="filter-tool-button" onClick={()=>setMode('')}>Cancel</button><button type="submit" className="refresh">{mode==='delete'?'Delete view':mode==='new'?'Save view':'Save changes'}</button></div>
+      </form>
+    </dialog>
+  </div>;
 }
