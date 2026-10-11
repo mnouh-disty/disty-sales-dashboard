@@ -34,10 +34,10 @@ export function getCookie(request, name = COOKIE_NAME) {
   return "";
 }
 
-export async function createSession(password) {
+export async function createSession(password, identity = null) {
   const expiresAt = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
   const nonce = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(18)));
-  const payload = `v1.${expiresAt}.${nonce}`;
+  const payload = identity ? `v2.${expiresAt}.${bytesToBase64Url(encoder.encode(JSON.stringify(identity)))}.${nonce}` : `v1.${expiresAt}.${nonce}`;
   return { token: `${payload}.${await signature(payload, password)}`, expiresAt };
 }
 
@@ -45,12 +45,20 @@ export async function verifySession(request, password) {
   if (!password) return { valid: false, expiresAt: null };
   const token = getCookie(request);
   const parts = token.split(".");
-  if (parts.length !== 4 || parts[0] !== "v1") return { valid: false, expiresAt: null };
+  const v2 = parts[0] === "v2";
+  if (!(v2 ? parts.length === 5 : parts.length === 4 && parts[0] === "v1")) return { valid: false, expiresAt: null };
   const expiresAt = Number(parts[1]);
   if (!Number.isInteger(expiresAt) || expiresAt <= Math.floor(Date.now() / 1000)) return { valid: false, expiresAt: null };
-  const payload = parts.slice(0, 3).join(".");
+  const payload = parts.slice(0, -1).join(".");
   const expected = await signature(payload, password);
-  return { valid: safeEqual(expected, parts[3]), expiresAt };
+  if (!safeEqual(expected, parts.at(-1))) return { valid:false, expiresAt:null };
+  let identity = null;
+  if (v2) {
+    try { identity = JSON.parse(atob(parts[2].replaceAll("-", "+").replaceAll("_", "/"))); }
+    catch { return { valid:false,expiresAt:null }; }
+    if (!identity || typeof identity.id !== "string" || !Number.isInteger(identity.version)) return { valid:false,expiresAt:null };
+  }
+  return { valid: true, expiresAt, identity };
 }
 
 export function sessionCookie(token, maxAge = SESSION_SECONDS) {

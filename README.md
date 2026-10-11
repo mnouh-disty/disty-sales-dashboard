@@ -123,3 +123,15 @@ Orders now preserve the Redash platform field, expose a Platform multi-select an
 The dashboard and login use a default near-black theme with charcoal surfaces, readable gray text, subtle borders and restrained purple accents. Charts, tooltips, retention cells, controls, saved filter views and error states use the same dark palette. Browser-native form controls use color-scheme: dark.
 
 Global filters use a compact saved-view picker and quick dates. Detailed criteria open with Filters; New view opens a naming dialog. Selected views can be renamed, updated or deleted from the settings menu. Applying a view preserves the current dates, and changing dates keeps the view selected. Views remain saved in this browser.
+
+## Individual users
+
+The Users page is visible to Admins. Viewers can use analytics, filters and exports; only Admins can create/edit accounts, change roles, reset passwords or disable access. Passwords use PBKDF2-SHA256 with a random salt. Every authenticated API request checks account status and session version; editing an account revokes its older sessions. The last active Admin cannot be disabled or demoted.
+
+One-time Cloudflare setup:
+1. Create a D1 database named `disty-dashboard-users` and copy its database ID.
+2. Configure a production D1 binding in `wrangler.toml` using `[env.production]` with `[[env.production.d1_databases]]`, `binding = "USERS_DB"`, `database_name = "disty-dashboard-users"` and `database_id` set to the actual ID. Production-only configuration avoids sharing production accounts with preview deployments. Deploy that commit. The project uses Wrangler as the source of truth, so bindings should be committed rather than edited in the dashboard.
+3. Sign in with the current owner password, open Users, and create your own Admin account. The schema initializes automatically; `migrations/0001_users.sql` is also provided. The first Admin account replaces the shared-password login and invalidates previous shared sessions. You remain signed in as the new Admin.
+4. Add other users and securely share their email and initial password. No invitation email is sent.
+
+Keep `DASHBOARD_PASSWORD` configured as a server-only secret: it now signs sessions even after shared login is replaced. Changing this secret invalidates all sessions. Without a D1 binding the current owner login continues working and Users reports the required setup. Never use preview databases for production accounts.
