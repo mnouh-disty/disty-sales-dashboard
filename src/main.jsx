@@ -10,6 +10,7 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import "./styles.css";
+import { normalizeProducts } from "./products-data.js";
 import SocialMediaPage from "./SocialMediaPage.jsx";
 import SavedFilterViews from "./SavedFilterViews.jsx";
 import UsersPage from "./UsersPage.jsx";
@@ -374,7 +375,7 @@ function App() {
   const load = async (manual = false) => {
     manual ? setRefreshing(true) : setStatus("loading"); setErrors({});
     const names = ["orders", "products", "customers"];
-    const results = await Promise.all(names.map(async (name) => { try { const response = await fetch(`/api/${name}`, { method: manual ? "POST" : "GET", headers: manual ? { "X-Manual-Refresh": "1" } : {} }); const payload = await response.json().catch(() => ({})); if (response.status === 401) { setAuth("anonymous"); throw new Error("Your session has expired."); } if (!response.ok) throw new Error(payload.message || payload.error || `Could not load ${name}.`); return { name, rows: Array.isArray(payload[name]) ? payload[name] : [], updatedAt: payload.updatedAt }; } catch (error) { return { name, error: error.message }; } }));
+    const results = await Promise.all(names.map(async (name) => { try { const response = await fetch(`/api/${name}`, { method: manual ? "POST" : "GET", headers: manual ? { "X-Manual-Refresh": "1" } : {} }); const payload = await response.json().catch(() => ({})); if (response.status === 401) { setAuth("anonymous"); throw new Error("Your session has expired."); } if (!response.ok) throw new Error(payload.message || payload.error || `Could not load ${name}.`); const rawRows = name === "products" ? (payload?.query_result?.data?.rows ?? payload?.query_result?.rows ?? payload?.data?.rows ?? payload?.rows) : null; if (name === "products" && response.headers.get("x-disty-products-format") === "redash-stream" && !Array.isArray(rawRows)) throw new Error("Redash returned an invalid products dataset."); return { name, rows: name === "products" && Array.isArray(rawRows) ? normalizeProducts(rawRows) : (Array.isArray(payload[name]) ? payload[name] : []), updatedAt: payload.updatedAt || (name === "products" ? new Date().toISOString() : null) }; } catch (error) { return { name, error: error.message }; } }));
     const nextErrors = {}; const nextData = { ...datasets }; let latest = null;
     results.forEach((result) => { if (result.error) nextErrors[result.name] = result.error; else { nextData[result.name] = result.rows; if (!latest || result.updatedAt > latest) latest = result.updatedAt; } });
     setDatasets(nextData); setErrors(nextErrors); if (latest) setUpdatedAt(latest); setStatus(Object.keys(nextErrors).length === names.length ? "error" : "ready"); setRefreshing(false);
