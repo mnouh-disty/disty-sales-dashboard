@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialFilters,VIEWS_KEY,CURRENT_KEY,SELECTED_VIEW_KEY,normalizeFilters,snapshot,readViews,readCurrent,saveView,sameSnapshot,sameViewCriteria,applyView,readSelectedView,matchesPlatform} from '../src/filter-views.js';
+import {initialFilters,VIEWS_KEY,CURRENT_KEY,SELECTED_VIEW_KEY,normalizeFilters,snapshot,readViews,readCurrent,saveView,sameSnapshot,sameViewCriteria,applyView,readSelectedView,matchesPlatform,matchesMerchant,merchantGroup} from '../src/filter-views.js';
 import {normalizeOrders} from '../functions/_shared/redash.js';
 const memory=()=>{const data=new Map();return {getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)};};
 test('applying a view replaces other filters but keeps current dates, including all time',()=>{
@@ -42,4 +42,16 @@ test('platform survives Redash normalization and filters distinguish missing and
  assert.equal(rows[0].platform,'ios');assert.equal(rows[1].platform,'');
  const filter=normalizeFilters({platforms:['ios'],platformPresence:'set'});assert.deepEqual(rows.filter(r=>matchesPlatform(r,filter)).map(r=>r.order_id),['1']);
  assert.deepEqual(rows.filter(r=>matchesPlatform(r,normalizeFilters({platformPresence:'empty'}))).map(r=>r.order_id),['2']);assert.equal(rows.filter(r=>matchesPlatform(r,normalizeFilters())).length,3);
+});
+
+
+test("merchant filters and saved views distinguish Disty Store from marketplace",()=>{
+ const rows=[{merchant_name:"Disty Store"},{merchant_name:"Partner A"},{merchant_name:"Partner B"},{merchant_name:""}];
+ assert.deepEqual(rows.map(row=>merchantGroup(row.merchant_name)),["Disty","Marketplace","Marketplace",""]);
+ assert.deepEqual(rows.filter(row=>matchesMerchant(row,normalizeFilters({merchantGroup:"Disty"}))),[rows[0]]);
+ assert.deepEqual(rows.filter(row=>matchesMerchant(row,normalizeFilters({merchantGroup:"Marketplace"}))),[rows[1],rows[2]]);
+ assert.deepEqual(rows.filter(row=>matchesMerchant(row,normalizeFilters({merchantGroup:"Marketplace",merchants:["Partner B"]}))),[rows[2]]);
+ const view=snapshot({merchants:["Partner A"],merchantGroup:"Marketplace"},"month");
+ assert.deepEqual(view.filters.merchants,["Partner A"]);assert.equal(view.filters.merchantGroup,"Marketplace");
+ assert.equal(normalizeFilters({merchantGroup:"invalid"}).merchantGroup,"all");
 });
