@@ -1,4 +1,4 @@
-export const initialFilters = { start:'', end:'', customers:[], erps:[], cities:[], sources:[], platforms:[], platformPresence:'all', entities:[], verification:'all', paymentMethods:[], paymentStatuses:[], orderTypes:[], orderStates:[], mada:'all', discount:'all', wallet:'all', includeExcluded:false };
+export const initialFilters = { start:'', end:'', customers:[], erps:[], merchants:[], merchantGroup:'all', cities:[], sources:[], platforms:[], platformPresence:'all', entities:[], verification:'all', paymentMethods:[], paymentStatuses:[], orderTypes:[], orderStates:[], mada:'all', discount:'all', wallet:'all', includeExcluded:false };
 export const VIEWS_KEY='disty.filter-views.v1';
 export const CURRENT_KEY='disty.current-filters.v1';
 export const SELECTED_VIEW_KEY='disty.selected-filter-view.v1';
@@ -12,7 +12,7 @@ export function normalizeFilters(value={}) {
     else result[key]=typeof input==='string'?input:defaultValue;
   }
   for(const key of ['start','end']) if(result[key]&&!/^\d{4}-\d{2}-\d{2}$/.test(result[key])) result[key]='';
-  for(const [key,allowed] of Object.entries({verification:['all','Verified','Pending','Unverified'],mada:['all','mada','non','unknown'],discount:['all','with','without'],wallet:['all','with','without'],platformPresence:['all','set','empty']})) if(!allowed.includes(result[key]))result[key]='all';
+  for(const [key,allowed] of Object.entries({verification:['all','Verified','Pending','Unverified'],mada:['all','mada','non','unknown'],discount:['all','with','without'],wallet:['all','with','without'],platformPresence:['all','set','empty'],merchantGroup:['all','Disty','Marketplace']})) if(!allowed.includes(result[key]))result[key]='all';
   return result;
 }
 export function snapshot(filters,period) {return {filters:normalizeFilters(filters),period:['day','week','month'].includes(period)?period:'month'};}
@@ -53,4 +53,17 @@ export function matchesPlatform(row,filters) {
   if(filters.platformPresence==='set'&&!platform)return false;
   if(filters.platformPresence==='empty'&&platform)return false;
   return !filters.platforms.length||filters.platforms.includes(platform);
+}
+
+// Merchant grouping is intentionally based only on the named merchant, not order source.
+export function merchantGroup(name) {
+  const merchant=String(name??'').trim();
+  if(!merchant)return '';
+  return merchant.toLocaleLowerCase('en')==='disty store'?'Disty':'Marketplace';
+}
+export function matchesMerchant(row,filters) {
+  const merchant=String(row.merchant_name??'').trim();
+  if(filters.merchants?.length&&!filters.merchants.includes(merchant))return false;
+  if(filters.merchantGroup&&filters.merchantGroup!=='all'&&merchantGroup(merchant)!==filters.merchantGroup)return false;
+  return true;
 }
