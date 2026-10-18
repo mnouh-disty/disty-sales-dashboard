@@ -65,3 +65,10 @@ test("endpoint returns normalized data without exposing its secret", async () =>
   }
 });
 
+
+
+test("merchant normalization preserves name and classifies Disty Store", () => {
+ const rows=normalizeRows([{order_id:"m1",created_at:"2026-10-01",merchant_name:" Disty Store "},{order_id:"m2",created_at:"2026-10-01",merchant_name:"Partner A"},{order_id:"m3",created_at:"2026-10-01"}]);
+ assert.deepEqual(rows.map(row=>row.merchant_name),["Disty Store","Partner A",""]);
+ assert.deepEqual(rows.map(row=>row.merchant_group),["Disty","Marketplace",""]);
+});
