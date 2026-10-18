@@ -51,6 +51,8 @@ export function normalizeOrders(rows) {
       city: clean(raw.city),
       source: clean(raw.source),
       platform: clean(raw.platform),
+      merchant_name: clean(pick(raw, 'merchant_name', 'merchant_name_en')),
+      merchant_group: (() => { const name = clean(pick(raw, 'merchant_name', 'merchant_name_en')); return !name ? '' : name.toLowerCase() === 'disty store' ? 'Disty' : 'Marketplace'; })(),
       payment_method: clean(raw.payment_method),
       payment_status: clean(raw.payment_status),
       order_type: clean(raw.order_type),
