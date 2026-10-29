@@ -55,8 +55,9 @@ export default function CatalogPage({refreshKey=0,onUpdated=()=>{}}){
     {select("Product status",status,setStatus,["all","active","inactive"])}
     {select("Stock status",stockStatus,setStockStatus,["all","in","out"])}
    </div>
+   <p className="cat-footnote">The creation-date range filters New SKUs and the Created Products chart by default. To filter every KPI and listing by creation date, check the option below.</p>
    <label className="cat-date-toggle"><input type="checkbox" checked={applyDates} onChange={e=>setApplyDates(e.target.checked)}/> Apply creation dates to all KPIs and the product table (otherwise dates only affect New SKUs and Created Products)</label>
-   <div className="cat-toggle-row"><span>Chart period</span>{["day","week","month"].map(x=><button className={period===x?"selected":""} onClick={()=>setPeriod(x)} key={x}>{x}</button>)}<span className="cat-spaced">Breakdown</span>{["sku","category"].map(x=><button key={x} className={breakdown===x?"selected":""} onClick={()=>setBreakdown(x)}>{x==="sku"?"By SKU / date":"By category"}</button>)}</div>
+   <div className="cat-toggle-row"><button type="button" onClick={()=>{setChannel("all");setVendor("all");setCategory("all");setStatus("all");setStockStatus("all");setDates(rangePreset("30"));setApplyDates(false);setQuery("");}}>Reset all filters</button><span>Chart period</span>{["day","week","month"].map(x=><button className={period===x?"selected":""} onClick={()=>setPeriod(x)} key={x}>{x}</button>)}<span className="cat-spaced">Breakdown</span>{["sku","category"].map(x=><button key={x} className={breakdown===x?"selected":""} onClick={()=>setBreakdown(x)}>{x==="sku"?"By SKU / date":"By category"}</button>)}</div>
   </section>
   <div className="cat-kpis">
    <Metric label="Unique SKUs" value={number.format(skuRows.length)} detail="Distinct assr_sku_id"/>
