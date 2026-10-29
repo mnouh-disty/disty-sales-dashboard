@@ -45,6 +45,7 @@ Add these as encrypted **Secrets** in Production (and Preview only if preview de
 | `REDASH_ORDERS_QUERY_URL` | Protected Redash source for query 263 |
 | `REDASH_PRODUCTS_QUERY_URL` | Protected Redash source for query 262 |
 | `REDASH_CUSTOMERS_QUERY_URL` | Protected Redash source for query 264 |
+| `REDASH_CHANNEL_PRODUCTS_QUERY_URL` | Protected Redash JSON results URL for Catalog query 266 |
 | `DASHBOARD_PASSWORD` | Shared password used only by Pages Functions |
 
 If the three URLs do not already contain their server-side authentication, also add `REDASH_QUERY_API_KEY` as an encrypted secret. Never put any of these values in `wrangler.toml`, Git, frontend source, browser storage, a URL shared with users, or a variable whose name starts with `VITE_`.
@@ -135,3 +136,10 @@ One-time Cloudflare setup:
 4. Add other users and securely share their email and initial password. No invitation email is sent.
 
 Keep `DASHBOARD_PASSWORD` configured as a server-only secret: it now signs sessions even after shared login is replaced. Changing this secret invalidates all sessions. Without a D1 binding the current owner login continues working and Users reports the required setup. Never use preview databases for production accounts.
+
+
+## Catalog (Redash Query 266)
+
+Catalog is an independent tab backed by the authenticated `/api/catalog` endpoint. Configure `REDASH_CHANNEL_PRODUCTS_QUERY_URL` as an encrypted Cloudflare Pages Secret, using the JSON results URL for Redash Query 266. The existing dashboard and query endpoints remain unchanged.
+
+Catalog tracks distinct `assr_sku_id` SKUs, base-product IDs, SKU-vendor-channel listing combinations, active status, image completeness, product-creation trends, channel coverage, and a searchable CSV-exportable product explorer. SKU stock, quantity sold, and ordered amount are counted once per SKU across the current view. Channel stock is labelled *listed SKU stock* and is not dedicated inventory or additive across channels. Channel-attributed sales and revenue are marked unavailable until the Redash query exposes transaction-level vendor/channel attribution. Creation-date range affects new-SKU charts by default; it only scopes all metrics when the user chooses that option.
