@@ -38,6 +38,8 @@ export function normalizeOrders(rows) {
     const orderId = clean(raw.order_id);
     const createdAt = timestamp(raw.created_at, true);
     if (!orderId || !createdAt || unique.has(orderId)) continue;
+    const merchantName = clean(raw.merchant_name) || clean(raw.merchant_name_en) || clean(raw.merchant_name_ar);
+    const merchantNames = [...new Set(merchantName.split(",").map(clean).filter(Boolean))];
     unique.set(orderId, {
       order_id: orderId,
       customer_id: clean(raw.customer_id),
@@ -51,8 +53,11 @@ export function normalizeOrders(rows) {
       city: clean(raw.city),
       source: clean(raw.source),
       platform: clean(raw.platform),
-      merchant_name: clean(pick(raw, 'merchant_name', 'merchant_name_en')),
-      merchant_group: (() => { const name = clean(pick(raw, 'merchant_name', 'merchant_name_en')); return !name ? '' : name.toLowerCase() === 'disty store' ? 'Disty' : 'Marketplace'; })(),
+      merchant_name: merchantName,
+      merchant_names: merchantNames,
+      merchant_id: clean(raw.merchant_id),
+      merchant_count: numeric(raw.merchant_count) || merchantNames.length,
+      merchant_group: merchantNames.length ? merchantNames.every(name => name.toLowerCase() === 'disty store') ? 'Disty' : 'Marketplace' : '',
       payment_method: clean(raw.payment_method),
       payment_status: clean(raw.payment_status),
       order_type: clean(raw.order_type),
@@ -156,12 +161,14 @@ export async function serveDataset(context, { name, secret, normalize }) {
   if (!(["GET", "POST"].includes(request.method)) || (request.method === "POST" && !manual)) return json({ error: "Method not allowed." }, 405, { Allow: "GET, POST" });
   const cache = caches.default;
   const cleanUrl = new URL(request.url); cleanUrl.search = "";
-  const cacheKey = new Request(cleanUrl.toString(), { method: "GET" });
+  const versionedUrl = new URL(cleanUrl);
+  if (name === "orders") versionedUrl.searchParams.set("schema", "merchant-v2");
+  const cacheKey = new Request(versionedUrl.toString(), { method: "GET" });
   if (!manual) {
     const cached = await cache.match(cacheKey);
     if (cached) return new Response(cached.body, cached);
   } else {
-    const cooldownKey = new Request(`${cleanUrl.origin}/__cache/${name}-refresh`, { method: "GET" });
+    const cooldownKey = new Request(`${cleanUrl.origin}/__cache/${name}-refresh${name === "orders" ? "-merchant-v2" : ""}`, { method: "GET" });
     if (await cache.match(cooldownKey)) {
       const cached = await cache.match(cacheKey);
       if (cached) return new Response(cached.body, cached);

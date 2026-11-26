@@ -72,3 +72,5 @@ test("merchant normalization preserves name and classifies Disty Store", () => {
  assert.deepEqual(rows.map(row=>row.merchant_name),["Disty Store","Partner A",""]);
  assert.deepEqual(rows.map(row=>row.merchant_group),["Disty","Marketplace",""]);
 });
+
+test("merchant aliases fall back when blank and preserve multi-merchant data",()=>{const rows=normalizeRows([{order_id:"a",created_at:"2026-11-26",merchant_name:" ",merchant_name_en:"Disty Store, Partner A",merchant_id:"1, 2",merchant_count:2},{order_id:"b",created_at:"2026-11-26",merchant_name_en:"Disty Store"}]);assert.deepEqual(rows[0].merchant_names,["Disty Store","Partner A"]);assert.equal(rows[0].merchant_count,2);assert.equal(rows[0].merchant_group,"Marketplace");assert.equal(rows[1].merchant_group,"Disty");});

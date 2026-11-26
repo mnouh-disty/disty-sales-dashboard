@@ -55,3 +55,5 @@ test("merchant filters and saved views distinguish Disty Store from marketplace"
  assert.deepEqual(view.filters.merchants,["Partner A"]);assert.equal(view.filters.merchantGroup,"Marketplace");
  assert.equal(normalizeFilters({merchantGroup:"invalid"}).merchantGroup,"all");
 });
+
+test("individual merchant names match aggregated orders without duplicating them",()=>{const rows=[{merchant_name:"Disty Store, Partner A"},{merchant_name_en:"Disty Store"},{merchant_name:"Partner A"}];assert.equal(rows.filter(r=>matchesMerchant(r,normalizeFilters({merchants:["Partner A"]}))).length,2);assert.equal(rows.filter(r=>matchesMerchant(r,normalizeFilters({merchantGroup:"Disty"}))).length,1);assert.equal(rows.filter(r=>matchesMerchant(r,normalizeFilters({merchantGroup:"Marketplace"}))).length,2);});

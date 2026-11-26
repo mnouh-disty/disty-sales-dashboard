@@ -56,14 +56,20 @@ export function matchesPlatform(row,filters) {
 }
 
 // Merchant grouping is intentionally based only on the named merchant, not order source.
+export function merchantNames(row) {
+  const name = String(row.merchant_name || row.merchant_name_en || row.merchant_name_ar || "").trim();
+  const values = Array.isArray(row.merchant_names) && row.merchant_names.length ? row.merchant_names : name.split(",");
+  return [...new Set(values.map(v => String(v).trim()).filter(Boolean))];
+}
 export function merchantGroup(name) {
-  const merchant=String(name??'').trim();
-  if(!merchant)return '';
-  return merchant.toLocaleLowerCase('en')==='disty store'?'Disty':'Marketplace';
+  const names=merchantNames({merchant_name:name});
+  if(!names.length)return '';
+  return names.every(n=>n.toLowerCase()==='disty store')?'Disty':'Marketplace';
 }
 export function matchesMerchant(row,filters) {
-  const merchant=String(row.merchant_name??'').trim();
-  if(filters.merchants?.length&&!filters.merchants.includes(merchant))return false;
-  if(filters.merchantGroup&&filters.merchantGroup!=='all'&&merchantGroup(merchant)!==filters.merchantGroup)return false;
+  const names=merchantNames(row);
+  const combined=String(row.merchant_name||row.merchant_name_en||"").trim();
+  if(filters.merchants?.length&&!filters.merchants.some(name=>names.includes(name)||name===combined))return false;
+  if(filters.merchantGroup&&filters.merchantGroup!=='all'&&merchantGroup(names.join(", "))!==filters.merchantGroup)return false;
   return true;
 }
