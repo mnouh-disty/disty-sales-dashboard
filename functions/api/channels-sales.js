@@ -8,7 +8,7 @@ export async function onRequest(context){
   try{
     const user=context.data?.user||await authenticate(context.request,context.env);
     if(!user)return json({error:'Authentication required.'},401);
-    const db=context.env.USERS_DB;if(!db)return json({error:'Channel storage requires the USERS_DB D1 binding in Cloudflare Pages.'},503);
+    const db=context.env.CHANNELS_DB||context.env.USERS_DB;if(!db)return json({error:'Channel storage is not connected. Bind a D1 database as CHANNELS_DB or USERS_DB in Cloudflare Pages production settings.'},503);
     await db.prepare(schema).run();
     if(context.request.method==='GET'){
       const after=new URL(context.request.url).searchParams.get('after')||'';
@@ -18,7 +18,7 @@ export async function onRequest(context){
     if(context.request.method!=='POST')return json({error:'Method not allowed.'},405);
     if(user.role!=='admin')return json({error:'Only admins can upload reports.'},403);
     const body=await context.request.json().catch(()=>null);
-    if(!Array.isArray(body?.rows)||!body.rows.length||body.rows.length>50||!body.rows.every(valid))return json({error:'Invalid report batch.'},400);
+    if(!Array.isArray(body?.rows)||!body.rows.length||body.rows.length>20||!body.rows.every(valid))return json({error:'Invalid report batch.'},400);
     const rows=body.rows.map(sanitize);
     const now=new Date().toISOString();const statements=[];
     for(const row of rows){const key=keyOf(row),payload=JSON.stringify(row);
@@ -27,5 +27,5 @@ export async function onRequest(context){
     }
     const result=await db.batch(statements);let added=0,updated=0;for(let i=0;i<result.length;i+=2){added+=result[i].meta.changes||0;updated+=result[i+1].meta.changes||0;}
     return json({added,updated,skipped:rows.length-added-updated});
-  }catch(e){return json({error:'Channel sales storage is temporarily unavailable.'},503);}
+  }catch(e){console.error('Channel sales database failure',e?.message);return json({error:'Channel sales database is unavailable. Check the D1 binding and Cloudflare Functions logs, then retry.'},503);}
 }
