@@ -4,3 +4,8 @@ pages_build_output_dir = "dist"
 
 # Add runtime values in Cloudflare Pages → Settings → Variables and Secrets.
 # Keep all Redash query URLs, keys and DASHBOARD_PASSWORD as encrypted secrets.
+
+[[d1_databases]]
+binding = "USERS_DB"
+database_name = "disty-sales-dashboard-db"
+database_id = "e580914b-f40d-4c9d-abcb-465d9d626d13"
