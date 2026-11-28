@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {buildOrders,profitSummary,orderKey,parseExpense} from '../src/channel-profitability.js';
+const a={channel:'Amazon.sa',orderId:'1',lineId:'a',day:'2026-11-26',status:'Shipped',qty:2,revenue:200,sku:'123',product:'Phone'};
+const b={...a,lineId:'b',qty:1,revenue:100};
+const c={...a,orderId:'2',lineId:'a',qty:1,revenue:150};
+const d={...a,channel:'Trendyol'};
+test('same SKU in distinct orders remains separate, same ID across channels separate, repeated lines ignored',()=>{const o=buildOrders([a,b,a,c,d]);assert.equal(o.length,3);assert.equal(o.find(r=>r.key===orderKey(a)).revenueCents,30000);assert.equal(o.find(r=>r.key===orderKey(a)).qty,3);});
+test('all expenses required, zero is valid and margin weighted',()=>{const costs={[orderKey(a)]:{productCost:20000,commission:1500,opsCost:500},[orderKey(c)]:{productCost:10000,commission:0,opsCost:0}};const o=buildOrders([a,b,c,d],costs);const s=profitSummary(o);assert.equal(s.complete,2);assert.equal(s.missing,1);assert.equal(s.profit,13000);assert.equal(s.coveredRevenue,45000);assert.equal(s.margin,13000/45000);assert.equal(o.find(r=>r.channel==='Trendyol').profit,null);});
+test('cancelled order can capture incurred expense as loss without dividing by zero',()=>{const cancelled={...a,status:'Cancelled'};const [o]=buildOrders([cancelled],{[orderKey(a)]:{productCost:0,commission:0,opsCost:500}});assert.equal(o.revenueCents,0);assert.equal(o.profit,-500);assert.equal(o.margin,null);});
+test('nullable expense inputs are distinct from zero',()=>{assert.equal(parseExpense(''),null);assert.equal(parseExpense(null),null);assert.equal(parseExpense('0'),0);assert.equal(parseExpense('12.34'),1234);assert.throws(()=>parseExpense('-1'));assert.throws(()=>parseExpense('1.234'));});

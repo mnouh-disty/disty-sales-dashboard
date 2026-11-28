@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS channel_order_expenses (channel TEXT NOT NULL, order_id TEXT NOT NULL, product_cost INTEGER CHECK(product_cost>=0), commission INTEGER CHECK(commission>=0), ops_cost INTEGER CHECK(ops_cost>=0), updated_at TEXT NOT NULL, PRIMARY KEY(channel,order_id));
