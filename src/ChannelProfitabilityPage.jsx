@@ -1,6 +1,7 @@
 import React,{useEffect,useMemo,useState} from 'react';
+import {ChevronDown,ChevronRight,ArrowUpDown,ArrowUp,ArrowDown,Check} from 'lucide-react';
 import {ResponsiveContainer,BarChart,Bar,CartesianGrid,XAxis,YAxis,Tooltip,Legend} from 'recharts';
-import {buildOrders,profitSummary,orderKey,expenseFields} from './channel-profitability.js';
+import {buildOrders,profitSummary,orderKey,expenseFields,parseExpense} from './channel-profitability.js';
 import {localDay,periodOf} from './channels-data.js';
 const money=n=>n===null||n===undefined?'—':'SAR '+(n/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const percent=n=>n===null||n===undefined?'—':(n*100).toFixed(2)+'%';
@@ -8,7 +9,7 @@ const initial={from:'',to:'',channel:'',status:'',completion:'',result:'',query:
 const labels={productCost:'Product cost',commission:'Commission / fees',opsCost:'Ops / fulfillment'};
 const draftOf=o=>Object.fromEntries(expenseFields.map(k=>[k,o.expense[k]==null?'':String(o.expense[k]/100)]));
 function Section({title,note,children}){return <section className="card"><div className="card-head"><div><h2>{title}</h2>{note&&<p>{note}</p>}</div></div>{children}</section>;}
-const cellStyle={width:105,padding:'7px 8px',background:'#18181b',border:'1px solid #303036',borderRadius:5,color:'inherit',fontSize:12};
+const cellStyle={width:'100%',minWidth:64,maxWidth:100,padding:'7px 8px',background:'#18181b',border:'1px solid #303036',borderRadius:5,color:'inherit',fontSize:12};
 const profitColor=n=>n==null?'#a1a1aa':n<0?'#f0a6a6':n>0?'#86efac':'inherit';
 async function request(url,opts,onSessionExpired){
  const c=new AbortController(),timer=setTimeout(()=>c.abort(),25000);
@@ -16,6 +17,7 @@ async function request(url,opts,onSessionExpired){
 }
 export default function ChannelProfitabilityPage({canEdit,onSessionExpired}){
  const [lines,setLines]=useState([]),[expenses,setExpenses]=useState({}),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[ready,setReady]=useState(false);
+ const [sort,setSort]=useState({key:'day',dir:'desc'}),[expanded,setExpanded]=useState({});
  const [filters,setFilters]=useState(initial),[drafts,setDrafts]=useState({}),[saving,setSaving]=useState(''),[page,setPage]=useState(0),[period,setPeriod]=useState('day');
  async function load(){
   setLoading(true);setError('');setReady(false);
@@ -35,6 +37,12 @@ export default function ChannelProfitabilityPage({canEdit,onSessionExpired}){
  }
  const orders=useMemo(()=>buildOrders(lines,expenses),[lines,expenses]);
  const filtered=useMemo(()=>orders.filter(o=>(!filters.from||o.day>=filters.from)&&(!filters.to||o.day<=filters.to)&&(!filters.channel||o.channel===filters.channel)&&(!filters.status||o.status===filters.status||o.statuses.includes(filters.status))&&(!filters.completion||(filters.completion==='complete'?o.complete:filters.completion==='missing'?!o.complete:o.missing.includes(filters.completion)))&&(!filters.result||(o.complete&&(filters.result==='profit'?o.profit>0:filters.result==='loss'?o.profit<0:o.profit===0)))&&(!filters.query||[o.orderId,...o.skus,...o.items].some(v=>v.toLowerCase().includes(filters.query.toLowerCase())))),[orders,filters]);
+ const sorted=useMemo(()=>{
+  const get=o=>sort.key==='item'?o.items.join(' · '):sort.key==='sku'?o.skus.join(', '):expenseFields.includes(sort.key)?o.expense[sort.key]:o[sort.key];
+  return [...filtered].sort((a,b)=>{const x=get(a),y=get(b);if(x==null||y==null)return x==null?(y==null?0:1):-1;const cmp=typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),'en',{numeric:true,sensitivity:'base'});return (sort.dir==='asc'?cmp:-cmp)||a.key.localeCompare(b.key);});
+ },[filtered,sort]);
+ const sortBy=key=>{setSort(s=>({key,dir:s.key===key&&s.dir==='asc'?'desc':'asc'}));setPage(0);};
+ const columns=[['item','Item'],['sku','SKU'],['revenueCents','Sales'],['productCost','Cost'],['commission','Fees'],['opsCost','Ops'],['profit','Profit'],['margin','Margin']];
  const summary=profitSummary(filtered);
  const groups=[...new Set(filtered.map(o=>o.channel))].map(channel=>({channel,...profitSummary(filtered.filter(o=>o.channel===channel))}));
  const trendMap=new Map();for(const o of filtered){const p=periodOf(o.day,period);if(!trendMap.has(p))trendMap.set(p,[]);trendMap.get(p).push(o);}
@@ -60,18 +68,23 @@ export default function ChannelProfitabilityPage({canEdit,onSessionExpired}){
    <label className="select-field"><span>Search order, SKU or item</span><input className="social-search" value={filters.query} onChange={e=>set('query',e.target.value)}/></label></div>
   </Section>
   <div className="kpi-grid">{kpis.map(([label,value])=><div className="kpi-card" key={label}><div><div className="eyebrow">{label}</div><h3>{value}</h3></div></div>)}</div>
+  <Section title="Individual orders" note="SAR · Total expenses per order. Select a header to sort. Expand an item for order details.">
+   <div className="table-wrap"><table className="profit-edit-table" style={{tableLayout:'fixed',minWidth:canEdit?850:760,width:'100%'}}><colgroup><col style={{width:'28%'}}/><col style={{width:'9%'}}/><col style={{width:'10%'}}/><col style={{width:'10%'}}/><col style={{width:'10%'}}/><col style={{width:'10%'}}/><col style={{width:'10%'}}/><col style={{width:'8%'}}/>{canEdit&&<col style={{width:'5%'}}/>}</colgroup><thead><tr>{columns.map(([key,label])=>{const Icon=sort.key!==key?ArrowUpDown:sort.dir==='asc'?ArrowUp:ArrowDown;return <th key={key} aria-sort={sort.key===key?(sort.dir==='asc'?'ascending':'descending'):'none'} style={{padding:'8px 7px'}}><button onClick={()=>sortBy(key)} title={'Sort by '+label} style={{display:'inline-flex',gap:4,alignItems:'center',border:0,background:'transparent',color:'inherit',font:'inherit',cursor:'pointer',padding:0}}>{label}<Icon size={12}/></button></th>;})}{canEdit&&<th aria-label="Save" style={{padding:'8px 4px'}}/>}</tr></thead>
+   <tbody>{sorted.slice(page*25,page*25+25).map(o=>{const d=drafts[o.key]||draftOf(o),open=!!expanded[o.key],dirty=!!drafts[o.key];let preview=null;
+     if(dirty){try{const v=expenseFields.map(k=>parseExpense(d[k]));if(v.every(n=>n!==null))preview=o.revenueCents-v.reduce((a,b)=>a+b,0);}catch{}}
+     const shownProfit=dirty?preview:o.profit,shownMargin=shownProfit!==null&&o.revenueCents>0?shownProfit/o.revenueCents:null;
+     const amount=n=>n==null?'—':(n/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+     return <React.Fragment key={o.key}><tr>
+    <td style={{padding:'9px 7px',whiteSpace:'normal'}}><button aria-expanded={open} aria-label={(open?'Collapse':'Expand')+' order '+o.orderId} onClick={()=>setExpanded(e=>({...e,[o.key]:!open}))} style={{display:'flex',alignItems:'flex-start',gap:5,textAlign:'left',background:'transparent',border:0,padding:0,color:'inherit',width:'100%',cursor:'pointer'}}>{open?<ChevronDown size={15} style={{flexShrink:0}}/>:<ChevronRight size={15} style={{flexShrink:0}}/>}<span style={{minWidth:0}}><span title={o.items.join(' · ')} style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',fontWeight:550,lineHeight:1.35}}>{o.items.join(' · ')}</span><span style={{display:'block',color:'#a1a1aa',fontSize:10,marginTop:3}}>{o.channel} · Qty {o.qty} · {o.status}</span>{!o.complete&&<span style={{color:'#fbbf24',fontSize:10}}>Missing expenses</span>}{dirty&&<span style={{color:'#c7b6ef',fontSize:10}}> {o.complete?'Unsaved edits':'· Unsaved edits'}</span>}</span></button></td>
+    <td style={{padding:'9px 7px',overflow:'hidden',textOverflow:'ellipsis'}} title={o.skus.join(', ')}>{o.skus.join(', ')||'—'}</td><td style={{padding:'9px 7px',fontVariantNumeric:'tabular-nums'}}>{amount(o.revenueCents)}</td>
+    {expenseFields.map(k=><td key={k} style={{padding:'6px 5px'}}>{canEdit?<input style={{...cellStyle,boxSizing:'border-box',borderColor:d[k]===''?'#7c6129':'#303036'}} aria-label={labels[k]+' for '+o.orderId} type="number" min="0" step="0.01" placeholder="—" value={d[k]} disabled={!!saving} onChange={e=>setDrafts(old=>({...old,[o.key]:{...(old[o.key]||draftOf(o)),[k]:e.target.value}}))} onKeyDown={e=>{if(e.key==='Enter'&&dirty){e.preventDefault();save(o);}}}/>:amount(o.expense[k])}</td>)}
+    <td style={{padding:'9px 7px',fontWeight:600,color:profitColor(shownProfit),fontVariantNumeric:'tabular-nums'}} title={dirty?'Unsaved preview':'Saved profit'}>{amount(shownProfit)}{dirty&&shownProfit!==null&&<small> *</small>}</td><td style={{padding:'9px 7px',fontWeight:600,color:profitColor(shownProfit)}}>{percent(shownMargin)}</td>
+    {canEdit&&<td style={{padding:'6px 4px'}}><button className="logout" style={{padding:5,minHeight:28}} disabled={!!saving||!dirty} title="Save order expenses" aria-label={'Save order '+o.orderId} onClick={()=>save(o)}>{saving===o.key?'…':<Check size={14}/>}</button></td>}
+   </tr>{open&&<tr><td colSpan={canEdit?9:8} style={{whiteSpace:'normal',padding:'12px 20px',background:'#18181b'}}><div style={{display:'flex',gap:18,flexWrap:'wrap',alignItems:'center',fontSize:12}}><span><strong>Order ID:</strong> {o.orderId}</span><span><strong>Date:</strong> {o.day}</span><span><strong>Status:</strong> {o.statuses.join(', ')}</span><span><strong>Saved total expenses:</strong> {money(o.total)}</span>{!o.complete&&<span style={{color:'#fbbf24'}}>Missing: {o.missing.map(k=>labels[k]).join(', ')}</span>}{canEdit&&dirty&&<button className="logout" disabled={!!saving} onClick={()=>setDrafts(old=>{const next={...old};delete next[o.key];return next;})}>Undo edits</button>}</div><div style={{marginTop:6,color:'#a1a1aa'}}>{o.items.join(' · ')}</div></td></tr>}</React.Fragment>;})}</tbody></table>{!filtered.length&&<p style={{padding:12}}>No matching orders. Upload reports in Channels Sales first.</p>}</div>
+   <div className="pagination"><button disabled={!page} onClick={()=>setPage(p=>p-1)}>Previous</button><span>Page {page+1} of {Math.max(1,Math.ceil(filtered.length/25))} · {filtered.length} orders · * unsaved profit preview</span><button disabled={(page+1)*25>=filtered.length} onClick={()=>setPage(p=>p+1)}>Next</button></div>
+  </Section>
   <Section title="Profitability by channel" note="Expense and margin totals include only fully costed orders. Margin = total contribution profit / corresponding sales revenue.">
    <div className="table-wrap"><table><thead><tr>{['Channel','Orders','Complete','Missing','Sales','Costed sales','Product cost','Commission','Ops / fulfillment','Contribution profit','Margin'].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{groups.map(g=><tr key={g.channel}><td>{g.channel}</td><td>{g.orders}</td><td>{g.complete}</td><td>{g.missing}</td><td>{money(g.revenue)}</td><td>{money(g.coveredRevenue)}</td>{expenseFields.map(k=><td key={k}>{g.complete?money(g[k]):'—'}</td>)}<td style={{color:profitColor(g.complete?g.profit:null)}}>{g.complete?money(g.profit):'—'}</td><td>{percent(g.margin)}</td></tr>)}</tbody></table></div>
-  </Section>
-  <Section title="Individual orders" note="Save each order independently. Blank inputs remain missing; uploaded reports never overwrite these expenses. Profit and margin appear after all three amounts are saved.">
-   <div className="table-wrap"><table><thead><tr>{['Date','Channel','Order ID','Items / SKU','Status','Qty','Revenue',...expenseFields.map(k=>labels[k]+' (SAR)'),'Total expenses','Profit','Margin','Expense status',...(canEdit?['Action']:[])].map(x=><th key={x}>{x}</th>)}</tr></thead>
-   <tbody>{filtered.slice(page*25,page*25+25).map(o=>{const d=drafts[o.key]||draftOf(o);return <tr key={o.key}>
-    <td>{o.day}</td><td>{o.channel}</td><td>{o.orderId}</td><td style={{maxWidth:260,whiteSpace:'normal'}} title={o.items.join(' · ')}>{o.items.join(' · ')}<div style={{color:'#a1a1aa'}}>{o.skus.join(', ')}</div></td><td title={o.statuses.join(', ')}>{o.status}</td><td>{o.qty}</td><td>{money(o.revenueCents)}</td>
-    {expenseFields.map(k=><td key={k}>{canEdit?<input style={{...cellStyle,borderColor:o.missing.includes(k)?'#7c6129':'#303036'}} aria-label={labels[k]+' for '+o.orderId} type="number" min="0" step="0.01" placeholder="Missing" value={d[k]} disabled={!!saving} onChange={e=>setDrafts(old=>({...old,[o.key]:{...(old[o.key]||draftOf(o)),[k]:e.target.value}}))}/>:money(o.expense[k])}</td>)}
-    <td>{money(o.total)}</td><td style={{color:profitColor(o.profit)}}>{money(o.profit)}</td><td style={{color:profitColor(o.profit)}}>{percent(o.margin)}</td><td><span style={{color:o.complete?'#86efac':'#fbbf24'}}>{o.complete?'Complete':'Missing '+o.missing.map(k=>labels[k]).join(', ')}</span>{drafts[o.key]&&<div>Unsaved edits</div>}</td>
-    {canEdit&&<td><button className="logout" disabled={!!saving||!drafts[o.key]} onClick={()=>save(o)}>{saving===o.key?'Saving…':'Save'}</button>{drafts[o.key]&&<button className="logout" disabled={!!saving} onClick={()=>setDrafts(old=>{const next={...old};delete next[o.key];return next;})}>Undo</button>}</td>}
-   </tr>;})}</tbody></table>{!filtered.length&&<p style={{padding:12}}>No matching orders. Upload reports in Channels Sales first.</p>}</div>
-   <div className="pagination"><button disabled={!page} onClick={()=>setPage(p=>p-1)}>Previous</button><span>Page {page+1} of {Math.max(1,Math.ceil(filtered.length/25))} · {filtered.length} orders</span><button disabled={(page+1)*25>=filtered.length} onClick={()=>setPage(p=>p+1)}>Next</button></div>
   </Section>
   <Section title="Profit trend" note="Only fully costed orders; pending sales remain provisional."><div className="segmented" style={{width:'fit-content',marginBottom:12}}>{['day','week','month'].map(p=><button key={p} className={period===p?'active':''} onClick={()=>setPeriod(p)}>{p}</button>)}</div><ResponsiveContainer width="100%" height={260}><BarChart data={trend}><CartesianGrid stroke="#303036" vertical={false}/><XAxis dataKey="day" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/><Tooltip formatter={n=>money(n*100)} contentStyle={{background:'#18181b'}}/><Legend/><Bar dataKey="revenue" name="Costed sales" fill="#a78bfa"/><Bar dataKey="profit" name="Contribution profit" fill="#86efac"/></BarChart></ResponsiveContainer></Section>
   </>}
