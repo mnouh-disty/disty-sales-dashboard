@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildOrders,profitSummary,orderKey,parseExpense,autoExpenses,recognizeCommissionCategory} from '../src/channel-profitability.js';
+import {buildOrders,profitSummary,orderKey,parseExpense,autoExpenses,recognizeCommissionCategory,defaultTrendyolSettings} from '../src/channel-profitability.js';
 import {defaultCommissionCategories} from '../src/commission-category-rules.js';
 const a={channel:'Amazon.sa',orderId:'1',lineId:'a',day:'2026-11-26',status:'Shipped',qty:2,revenue:200,sku:'123',product:'Phone'};
 const b={...a,lineId:'b',qty:1,revenue:100};
@@ -20,4 +20,9 @@ test('clear phone and console names use live category rates while accessories re
 test('manual category assignment overrides commission but keeps SKU operational assumptions',()=>{
  const auto=autoExpenses({channel:'Amazon.sa',qty:1,activeLines:[{sku:'73314',product:'Samsung Galaxy S25 Ultra',qty:1,revenueCents:100000}]},{73314:900},{categories:defaultCommissionCategories,assignments:[{channel:'Amazon.sa',sku:'73314',category:'Video Game Consoles'}]});
  assert.equal(auto.commission,6000);assert.equal(auto.storage!==null,true);assert.equal(auto.categories[0].source,'manual');
+});
+test('unknown Amazon storage is visible but does not create a false missing-expense status',()=>{
+ const line={channel:'Amazon.sa',orderId:'phone',lineId:'1',day:'2026-11-28',status:'Shipped',qty:1,revenue:3049,sku:'73312',product:'Samsung Galaxy S25 Ultra AI Phone'};
+ const [order]=buildOrders([line],{[orderKey(line)]:{productCost:281000}},defaultTrendyolSettings,{73312:900},{categories:defaultCommissionCategories,assignments:[]});
+ assert.equal(order.expense.commission,16769.5);assert.equal(order.inbound,400);assert.equal(order.storage,null);assert.deepEqual(order.provisionalCosts,['storage']);assert.equal(order.complete,true);assert.equal(order.profit!==null,true);
 });

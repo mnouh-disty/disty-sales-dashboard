@@ -52,7 +52,7 @@ export function autoExpenses(o,delivery={},commissionConfig={}){
   if(!l.qty)continue;
   if(!rule)missingRate=true;
   else commission+=commissionFee(rule,unit,l.qty);
-  if(amazon){const operational=resolved.exact;if(Number.isFinite(operational?.inbound))inbound+=operational.inbound*100*l.qty;else inboundKnown=false;if(Number.isFinite(operational?.storage))storage+=operational.storage*100*l.qty;else storageKnown=false;}
+  if(amazon){const operational=resolved.exact;if(Number.isFinite(operational?.inbound))inbound+=operational.inbound*100*l.qty;else if(rule)inbound+=400*l.qty;else inboundKnown=false;if(Number.isFinite(operational?.storage))storage+=operational.storage*100*l.qty;else storageKnown=false;}
   categories.push({sku:l.sku,category:resolved.category,source:resolved.source,uncertain:!rule});
   if(amazon){const fee=delivery[l.sku];if(!Number.isSafeInteger(fee)||fee<0)missingDelivery=true;else opsCost+=fee*l.qty;}
  }
@@ -67,11 +67,12 @@ export function calculateOrder(o,e,settings=defaultTrendyolSettings){
  const handling=trend?o.qty*s.handling:amazon?o.qty*125:0,packaging=trend?o.qty*s.packaging:0;
  const reserve=trend&&o.qty>0?(e.opsCost+handling+packaging)*s.returnRate/(100-s.returnRate):0;
  const economic={productCost,commission:e.commission,opsCost:e.opsCost};
- const inbound=amazon?(o.auto?.inbound??null):0,storage=amazon?(o.auto?.storage??null):0,operationsKnown=!amazon||(inbound!==null&&storage!==null);
- const actualTotal=operationsKnown?productCost+e.commission+e.opsCost+handling+packaging+inbound+storage:null;
- if(actualTotal===null)return {revenueNet:revenue,total:null,profit:null,margin:null,actualProfit:null,actualMargin:null,handling,packaging,reserve,economic,inbound,storage};
+ const inbound=amazon?(o.auto?.inbound??null):0,storage=amazon?(o.auto?.storage??null):0;
+ // Unknown operational inputs remain null in the UI. Profit uses known costs only and is explicitly marked provisional.
+ const provisionalCosts=amazon?[...(inbound===null?['inbound']:[]),...(storage===null?['storage']:[])]:[];
+ const actualTotal=productCost+e.commission+e.opsCost+handling+packaging+(inbound??0)+(storage??0);
  const total=actualTotal+reserve,profit=revenue-total,actualProfit=revenue-actualTotal;
- return {revenueNet:revenue,total,profit,margin:revenue>0?profit/revenue:null,actualProfit,actualMargin:revenue>0?actualProfit/revenue:null,handling,packaging,reserve,economic,inbound,storage};
+ return {revenueNet:revenue,total,profit,margin:revenue>0?profit/revenue:null,actualProfit,actualMargin:revenue>0?actualProfit/revenue:null,handling,packaging,reserve,economic,inbound,storage,provisionalCosts};
 }
 export function buildOrders(lines,expenses={},settings=defaultTrendyolSettings,delivery=null,commissionConfig={}){
   const map=new Map(),seen=new Set();
@@ -87,7 +88,7 @@ export function buildOrders(lines,expenses={},settings=defaultTrendyolSettings,d
   const prepared=prepareCommissionConfig(commissionConfig);
   return [...map.values()].map(o=>{
     const saved=expenses[o.key]||{},auto=delivery===null?null:autoExpenses(o,delivery,prepared),e=auto?{...saved,commission:o.qty===0?(saved.commission??0):auto.commission,opsCost:o.qty===0?(saved.opsCost??0):auto.opsCost}:saved;if(!auto)delete o.activeLines;o.auto=auto;const status=o.statuses.size===1?[...o.statuses][0]:'Mixed';
-    const missing=expenseFields.filter(k=>!Number.isFinite(e[k])||e[k]<0);if(auto&&o.channel==='Amazon.sa'&&o.qty>0){if(auto.inbound===null)missing.push('inbound');if(auto.storage===null)missing.push('storage');}
+    const missing=expenseFields.filter(k=>!Number.isFinite(e[k])||e[k]<0);
     const complete=missing.length===0;
     const calculation=calculateOrder(o,e,settings);
     return {...o,items:[...o.items],skus:[...o.skus],statuses:[...o.statuses],status,expense:e,savedExpense:saved,missing,complete,...calculation};
